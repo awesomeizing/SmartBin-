@@ -1,0 +1,255 @@
+/* ==========================================================================
+   SmartBin+ — Bin Card
+   --------------------------------------------------------------------------
+   A single bin at a glance: identity, fill level, status, telemetry.
+
+   Provenance is structural here, not decorative. A simulated bin gets a
+   dashed border and a diagonal hatch (from glass.css), so an observer can
+   tell real from simulated across the room without reading a word.
+   ========================================================================== */
+
+.bin-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--surface-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  overflow: hidden;
+  transition:
+    border-color var(--duration-micro) var(--ease-standard),
+    transform var(--duration-micro) var(--ease-standard),
+    box-shadow var(--duration-micro) var(--ease-standard);
+}
+
+.bin-card:hover {
+  border-color: var(--border-default);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+.bin-card:active { transform: translateY(0); }
+
+.bin-card:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+.bin-card.is-selected {
+  border-color: var(--sb-green-500);
+  box-shadow: 0 0 0 1px var(--sb-green-500);
+}
+
+/* Status rail — the fastest read on the card */
+.bin-card__rail {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: 3px;
+  background: var(--rail-color, var(--status-offline));
+}
+
+/* Critical bins pulse. Reserved for genuine urgency — if everything pulses,
+   nothing does. */
+.bin-card--critical .bin-card__rail {
+  animation: pulse-glow 2s var(--ease-standard) infinite;
+}
+
+/* --- Header -------------------------------------------------------------- */
+.bin-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding-inline-start: var(--space-2);
+}
+
+.bin-card__identity { min-width: 0; }
+
+.bin-card__label {
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+  line-height: var(--leading-snug);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bin-card__id {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: 2px;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-wide);
+  color: var(--text-tertiary);
+}
+
+.bin-card__badges {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-1);
+  flex-shrink: 0;
+}
+
+/* --- Fill display -------------------------------------------------------- */
+.bin-card__fill {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding-inline-start: var(--space-2);
+}
+
+.bin-card__pct {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-extra);
+  line-height: var(--leading-none);
+  letter-spacing: var(--tracking-tighter);
+  font-variant-numeric: tabular-nums;
+  color: var(--fill-color, var(--text-primary));
+}
+
+.bin-card__pct--unknown {
+  color: var(--text-disabled);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-medium);
+}
+
+.bin-card__state {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+/* --- Telemetry strip ----------------------------------------------------- */
+.bin-card__telemetry {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  padding-inline-start: var(--space-2);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.bin-card__metric { min-width: 0; }
+
+.bin-card__metric-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--text-disabled);
+}
+
+.bin-card__metric-value {
+  margin-top: 2px;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bin-card__metric-value.is-healthy  { color: var(--status-healthy); }
+.bin-card__metric-value.is-warning  { color: var(--status-warning); }
+.bin-card__metric-value.is-critical { color: var(--status-critical); }
+.bin-card__metric-value.is-offline  { color: var(--text-disabled); }
+
+/* --- Offline overlay -----------------------------------------------------
+   A bin that has stopped reporting is dimmed, because its numbers describe
+   the past, not the present. Showing them at full contrast would imply a
+   currency the data does not have.
+   -------------------------------------------------------------------------- */
+.bin-card--offline .bin-card__pct,
+.bin-card--offline .bin-card__telemetry {
+  opacity: 0.5;
+}
+
+.bin-card__stale-note {
+  padding-inline-start: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--status-offline);
+}
+
+/* --- Compact list variant, used in map sidebars -------------------------- */
+.bin-card--compact {
+  padding: var(--space-3);
+  gap: var(--space-2);
+}
+
+.bin-card--compact .bin-card__pct { font-size: var(--text-lg); }
+.bin-card--compact .bin-card__telemetry { display: none; }
+
+/* --- Filter toolbar ------------------------------------------------------ */
+.bin-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-4);
+}
+
+.bin-filter {
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  transition:
+    color var(--duration-micro) var(--ease-standard),
+    border-color var(--duration-micro) var(--ease-standard),
+    background-color var(--duration-micro) var(--ease-standard);
+}
+
+.bin-filter:hover {
+  color: var(--text-secondary);
+  border-color: var(--border-default);
+}
+
+.bin-filter.is-active {
+  color: var(--text-primary);
+  background: var(--surface-active);
+  border-color: var(--border-strong);
+}
+
+.bin-filter__count {
+  margin-inline-start: var(--space-2);
+  opacity: 0.65;
+}
+
+.bin-search {
+  flex: 1;
+  min-width: 180px;
+  max-width: 280px;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  background: var(--surface-inset);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  transition: border-color var(--duration-micro) var(--ease-standard);
+}
+
+.bin-search::placeholder { color: var(--text-disabled); }
+.bin-search:focus-visible {
+  outline: none;
+  border-color: var(--sb-blue-500);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.16);
+}

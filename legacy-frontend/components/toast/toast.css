@@ -1,0 +1,148 @@
+/* ==========================================================================
+   SmartBin+ — Toast Notifications
+   Transient alerts, stacked top-right, below the header.
+   ========================================================================== */
+
+.toast-container {
+  position: fixed;
+  top: calc(var(--nav-height) + var(--space-3));
+  inset-inline-end: var(--space-4);
+  z-index: var(--z-toast);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  pointer-events: none;   /* the container never blocks clicks */
+  max-width: 340px;
+}
+
+.toast {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  pointer-events: auto;
+  overflow: hidden;
+  animation: slide-in-right var(--duration-base) var(--ease-spring) both;
+}
+
+.toast--exiting {
+  animation: slide-out-right var(--duration-base) var(--ease-accelerate) forwards;
+}
+
+/* Severity accents */
+.toast--critical { border-color: var(--status-critical-brd); }
+.toast--warning  { border-color: var(--status-warning-brd); }
+.toast--info     { border-color: var(--status-info-brd); }
+.toast--success  { border-color: var(--status-healthy-brd); }
+
+.toast__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  margin-top: 1px;
+  font-size: var(--text-sm);
+}
+
+.toast--critical .toast__icon { color: var(--status-critical); }
+.toast--warning  .toast__icon { color: var(--status-warning); }
+.toast--info     .toast__icon { color: var(--status-info); }
+.toast--success  .toast__icon { color: var(--status-healthy); }
+
+.toast__body { flex: 1; min-width: 0; }
+
+.toast__title {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+  line-height: var(--leading-snug);
+}
+
+.toast__message {
+  margin-top: 2px;
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+  color: var(--text-secondary);
+}
+
+/* Provenance note — appended when a toast was triggered by simulated data.
+   Without it, a simulated overflow alert is indistinguishable from a real one. */
+.toast__provenance {
+  display: inline-block;
+  margin-top: var(--space-2);
+  padding: 1px var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-wide);
+  color: var(--provenance-simulated);
+  background: rgba(245, 158, 11, 0.10);
+  border: 1px dashed rgba(245, 158, 11, 0.34);
+  border-radius: var(--radius-xs);
+}
+
+.toast__close {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-sm);
+  line-height: 1;
+  color: var(--text-tertiary);
+  border-radius: var(--radius-sm);
+  transition: color var(--duration-micro) var(--ease-standard),
+              background-color var(--duration-micro) var(--ease-standard);
+}
+
+.toast__close:hover {
+  color: var(--text-primary);
+  background: var(--surface-hover);
+}
+
+/* Auto-dismiss progress bar */
+.toast__progress {
+  position: absolute;
+  bottom: 0;
+  inset-inline-start: 0;
+  height: 2px;
+  width: 100%;
+  transform-origin: left;
+  animation: toast-progress linear forwards;
+}
+
+.toast--critical .toast__progress { background: var(--status-critical); }
+.toast--warning  .toast__progress { background: var(--status-warning); }
+.toast--info     .toast__progress { background: var(--status-info); }
+.toast--success  .toast__progress { background: var(--status-healthy); }
+
+@keyframes toast-progress {
+  from { transform: scaleX(1); }
+  to   { transform: scaleX(0); }
+}
+
+/* Pausing on hover gives the operator time to read a message that is about
+   to disappear — a small thing that matters when alerts arrive in bursts. */
+.toast:hover .toast__progress { animation-play-state: paused; }
+
+@media (max-width: 480px) {
+  .toast-container {
+    inset-inline: var(--space-3);
+    max-width: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast,
+  .toast--exiting { animation: none; }
+  .toast__progress { animation: none; transform: scaleX(0); }
+}

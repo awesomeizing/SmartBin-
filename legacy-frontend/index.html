@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SmartBin+ · IoT Intelligent Waste Monitoring &amp; Route Optimization</title>
+<meta name="description" content="An IoT-based intelligent waste monitoring and route optimization system. ESP32 and ultrasonic sensing, Firebase realtime telemetry, threshold alerting and needs-based collection routing.">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@400;500;600&family=Outfit:wght@700;800&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="css/tokens.css">
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/layout.css">
+<link rel="stylesheet" href="css/glass.css">
+<link rel="stylesheet" href="css/animations.css">
+<link rel="stylesheet" href="css/utilities.css">
+<link rel="stylesheet" href="pages/landing/landing.css">
+</head>
+
+<body>
+<a class="skip-link" href="#main">Skip to main content</a>
+
+<!-- ====================== NAVIGATION ====================== -->
+<nav class="site-nav" id="site-nav" aria-label="Main navigation">
+  <a class="site-nav__logo" href="#top">
+    <span aria-hidden="true" style="color:var(--sb-green-500)">
+      <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+      </svg>
+    </span>
+    Smart<em>Bin</em>+
+  </a>
+
+  <ul class="site-nav__links">
+    <li><a href="#system">System</a></li>
+    <li><a href="#objectives">Objectives</a></li>
+    <li><a href="#architecture">Architecture</a></li>
+    <li><a href="#model">Model</a></li>
+    <li><a href="#research">Research</a></li>
+    <li><a href="about.html">About</a></li>
+    <li><a href="#team">Team</a></li>
+  </ul>
+
+  <a class="btn-nav" href="login.html">Open console</a>
+</nav>
+
+<main id="main">
+
+<!-- ====================== HERO ====================== -->
+<section class="hero" id="top">
+  <canvas class="hero__particles" id="hero-particles" aria-hidden="true"></canvas>
+  <div class="hero__glow" aria-hidden="true"></div>
+
+  <div class="hero__content">
+    <div class="hero__badge">
+      <span class="hero__badge-dot" aria-hidden="true"></span>
+      MAJOR PROJECT PHASE-I · CSEP23605 · GROUP 54 · GAT BENGALURU
+    </div>
+
+    <h1 class="hero__title">Smart<em>Bin</em>+</h1>
+
+    <p class="hero__lede">
+      Waste collection driven by what bins actually contain, not by the calendar.
+      Ultrasonic sensing on the bin, realtime telemetry to the cloud, and
+      collection routes that visit only what needs collecting.
+    </p>
+
+    <div class="hero__ctas">
+      <a class="btn-hero btn-hero--primary" href="login.html">
+        Open the operations console
+      </a>
+      <a class="btn-hero btn-hero--ghost" href="#architecture">
+        See how it works
+      </a>
+    </div>
+
+    <!-- Measured prototype results, from the project report.
+         Note the deliberate omission of the 98.5% figure cited in the report
+         abstract: that is a literature value for GSM delivery and this
+         prototype has no GSM module. -->
+    <div class="hero__results">
+      <div>
+        <div class="hero__result-value">
+          <span data-count="95" data-count-suffix="%">0%</span>
+        </div>
+        <div class="hero__result-label">Detection accuracy</div>
+      </div>
+      <div>
+        <div class="hero__result-value">
+          <span data-count="6.8" data-count-decimals="1" data-count-suffix="s">0s</span>
+        </div>
+        <div class="hero__result-label">Mean latency · 50 trials</div>
+      </div>
+      <div>
+        <div class="hero__result-value">
+          <span data-count="4.95" data-count-decimals="2" data-count-suffix="V">0V</span>
+        </div>
+        <div class="hero__result-label">Supply stability</div>
+      </div>
+      <div>
+        <div class="hero__result-value">
+          <span data-count="60" data-count-suffix="s">0s</span>
+        </div>
+        <div class="hero__result-label">Transmit interval</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="hero__scroll" aria-hidden="true">
+    <span>SCROLL</span>
+    <span class="hero__scroll-arrow"></span>
+  </div>
+</section>
+
+<!-- ====================== TELEMETRY STRIP ====================== -->
+<div class="telemetry-strip marquee" aria-hidden="true">
+  <div class="marquee__track" id="telemetry-track"></div>
+</div>
+
+<!-- ====================== SYSTEM / CITY ====================== -->
+<section class="section" id="system">
+  <div class="section__inner">
+    <header class="section__header" data-reveal="up">
+      <div class="section__tag">// the problem</div>
+      <h2 class="section__title">Trucks that visit bins <em>nobody filled</em></h2>
+      <div class="section__rule"></div>
+      <p class="section__lede">
+        Municipal collection runs on fixed schedules that bear no relationship
+        to what is actually in the bins. Commercial districts overflow before
+        their scheduled visit. Residential bins get emptied at 20% full. The
+        result wastes fuel, inflates costs, and still leaves streets dirtier
+        than they should be.
+      </p>
+    </header>
+
+    <div class="city-scene" data-reveal="scale">
+      <canvas class="city-scene__canvas" id="city-canvas"
+              role="img" aria-label="Animated isometric city showing smart bins changing fill state and collection vehicles following a route"></canvas>
+
+      <div class="city-scene__legend">
+        <div class="map-legend__row">
+          <span class="map-legend__swatch" style="background:var(--sb-green-500)"></span>
+          Empty · 0–50%
+        </div>
+        <div class="map-legend__row">
+          <span class="map-legend__swatch" style="background:var(--sb-amber-500)"></span>
+          Filling · 51–79%
+        </div>
+        <div class="map-legend__row">
+          <span class="map-legend__swatch" style="background:var(--sb-red-500)"></span>
+          Critical · 80–100%
+        </div>
+        <div class="map-legend__row">
+          <span class="map-legend__swatch" style="background:var(--sb-blue-500)"></span>
+          Collection vehicle
+        </div>
+      </div>
+    </div>
+
+    <p class="t-2xs c-tertiary mt-4 ta-center">
+      Illustrative scene. Live bin data is in the operations console.
+    </p>
+  </div>
+</section>
+
+<!-- ====================== OBJECTIVES ====================== -->
+<section class="section" id="objectives" style="background:var(--surface-raised)">
+  <div class="section__inner">
+    <header class="section__header" data-reveal="up">
+      <div class="section__tag">// project objectives</div>
+      <h2 class="section__title">Seven objectives, <em>taken from the report</em></h2>
+      <div class="section__rule"></div>
+    </header>
+
+    <div class="grid grid--auto-md" id="objectives-grid"></div>
+  </div>
+</section>
+
+<!-- ====================== ARCHITECTURE ====================== -->
+<section class="section" id="architecture">
+  <div class="section__inner section__inner--wide">
+    <header class="section__header" data-reveal="up">
+      <div class="section__tag">// system architecture</div>
+      <h2 class="section__title">From <em>echo pulse</em> to cleaner street</h2>
+      <div class="section__rule"></div>
+      <p class="section__lede">
+        Select any stage to see what happens there. This diagram shows the
+        system as built — components described in the report but not fitted to
+        the prototype are listed separately rather than drawn as though they
+        exist.
+      </p>
+    </header>
+
+    <div data-reveal="up" id="architecture-mount"></div>
+  </div>
+</section>
+
+<!-- ====================== 3D BIN ====================== -->
+<section class="section" id="model">
+  <div class="section__inner">
+    <header class="section__header" data-reveal="up">
+      <div class="section__tag">// interactive model</div>
+      <h2 class="section__title">The bin, <em>in three dimensions</em></h2>
+      <div class="section__rule"></div>
+      <p class="section__lede">
+        Drag to rotate. The HC-SR04 is mounted in the lid; the blue cone is its
+        measurement beam, terminating on the waste surface. The status LED
+        follows the same 0–50 / 51–79 / 80–100 bands as the firmware and the
+        dashboard.
+      </p>
+    </header>
+
+    <div class="split-even" style="align-items:start">
+      <div class="card" style="padding:0; overflow:hidden" data-reveal="left">
+        <div id="bin3d-container" style="width:100%; height:420px"></div>
+      </div>
+
+      <div class="stack" data-reveal="right">
+        <div class="card card--padded-lg">
+          <h3 class="kpi-group__title">Fill level</h3>
+
+          <div class="row row--between mb-3">
+            <span class="mono t-2xl fw-extra" id="bin3d-readout"
+                  style="font-family:var(--font-display)">0%</span>
+            <span class="pill pill--healthy" id="bin3d-status">
+              <span class="pill__dot"></span>EMPTY
+            </span>
+          </div>
+
+          <input type="range" id="bin3d-slider" min="0" max="100" value="0"
+                 style="width:100%; accent-color:var(--sb-green-500); cursor:pointer"
+                 aria-label="Bin fill level">
+
+          <div class="field-grid mt-4">
+            <div class="field-item">
+              <div class="field-item__label">Sensor distance</div>
+              <div class="field-item__value" id="bin3d-distance">20.0 cm</div>
+            </div>
+            <div class="field-item">
+              <div class="field-item__label">Bin status</div>
+              <div class="field-item__value" id="bin3d-band">Empty</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card card--padded-lg">
+          <h3 class="kpi-group__title">Controls</h3>
+          <div class="row row--sm row--wrap">
+            <button class="btn-sm" id="bin3d-lid">Open lid</button>
+            <button class="btn-sm" id="bin3d-fill">Fill to threshold</button>
+            <button class="btn-sm btn-sm--primary" id="bin3d-collect">Collect</button>
+          </div>
+          <p class="t-2xs c-tertiary mt-4">
+            Distance is derived from the fill level using the report §3.1 formula,
+            <code class="mono">(1 − d ÷ d_max) × 100</code>, with a 20 cm bin depth —
+            the same calculation the firmware performs on the ESP32.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====================== TECH STACK ====================== -->
+<section class="section" id="stack" style="background:var(--surface-raised)">
+  <div class="section__inner">
+    <header class="section__header" data-reveal="up">
+      <div class="section__tag">// technology stack</div>
+      <h2 class="section__title">What it's <em>actually built on</em></h2>
+      <div class="section__rule"></div>
+    </header>
+
+    <div class="split-even">
+      <div class="card card--padded-lg" data-reveal="left">
+        <h3 class="kpi-group__title">Hardware</h3>
+        <div id="stack-hardware"></div>
+      </div>
+
+      <div class="card card--padded-lg" data-reveal="right">
+        <h3 class="kpi-group__title">Software</h3>
+        <div id="stack-software"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====================== RESEARCH ====================== -->
+<section class="section" id="research">
+  <div class="section__inner">
+    <header class="section__header" data-reveal="up">
+      <div class="section__tag">// literature survey</div>
+      <h2 class="section__title">Gaps in the research, <em>and our response</em></h2>
+      <div class="section__rule"></div>
+      <p class="section__lede">
+        Our literature survey reviewed twenty works in IoT waste management.
+        Four gaps recurred across them. Each one shaped a design decision here.
+      </p>
+    </header>
+
+    <div class="grid grid--auto-md" id="research-grid"></div>
+  </div>
+</section>
+
+<!-- ====================== TIMELINE ====================== -->
+<section class="section" id="timeline" style="background:var(--surface-raised)">
+  <div class="section__inner">
+    <header class="section__header" data-reveal="up">
+      <div class="section__tag">// project timeline</div>
+      <h2 class="section__title">Phase-I <em>complete</em>, Phase-II scoped</h2>
+      <div class="section__rule"></div>
+    </header>
+
+    <div style="max-width:720px" id="timeline-list"></div>
+  </div>
+</section>
+
+<!-- ====================== TEAM ====================== -->
+<section class="section" id="team">
+  <div class="section__inner">
+    <header class="section__header" data-reveal="up">
+      <div class="section__tag">// group 54 · 6th semester CSE</div>
+      <h2 class="section__title">The <em>team</em></h2>
+      <div class="section__rule"></div>
+    </header>
+
+    <div class="grid grid--auto-sm mb-6" id="team-grid"></div>
+
+    <div class="card card--padded-lg row row--wrap" style="gap:var(--space-6)"
+         data-reveal="up" id="faculty"></div>
+  </div>
+</section>
+
+<!-- ====================== CTA ====================== -->
+<section class="section">
+  <div class="section__inner">
+    <div class="cta" data-reveal="scale">
+      <h2 class="cta__title">See it <em>running</em></h2>
+      <p class="section__lede" style="margin-inline:auto; text-align:center">
+        The operations console shows live bin telemetry, threshold alerting,
+        route optimisation and the full audit trail. Every bin is labelled with
+        where its data comes from.
+      </p>
+      <div class="hero__ctas" style="margin-top:var(--space-8); margin-bottom:0">
+        <a class="btn-hero btn-hero--primary" href="login.html">Open the console</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<!-- ====================== FOOTER ====================== -->
+<footer class="site-footer">
+  <div class="site-footer__grid">
+    <div>
+      <a class="site-nav__logo mb-4" href="#top">Smart<em>Bin</em>+</a>
+      <p class="t-sm c-tertiary" style="max-width:34ch; line-height:var(--leading-relaxed)">
+        An IoT-based intelligent waste monitoring and route optimization system
+        for sustainable smart cities. Major Project Phase-I, CSEP23605.
+      </p>
+    </div>
+
+    <div>
+      <div class="site-footer__col-title">Explore</div>
+      <ul class="site-footer__links">
+        <li><a href="#system">The problem</a></li>
+        <li><a href="#objectives">Objectives</a></li>
+        <li><a href="#architecture">Architecture</a></li>
+        <li><a href="#stack">Technology</a></li>
+        <li><a href="#research">Research</a></li>
+        <li><a href="about.html">About &amp; future scope</a></li>
+      </ul>
+    </div>
+
+    <div>
+      <div class="site-footer__col-title">Project</div>
+      <ul class="site-footer__links">
+        <li><a href="#team">Group 54</a></li>
+        <li><a href="#timeline">Timeline</a></li>
+        <li><a href="login.html">Operations console</a></li>
+      </ul>
+    </div>
+
+    <div>
+      <div class="site-footer__col-title">Institute</div>
+      <ul class="site-footer__links">
+        <li><span class="c-tertiary t-sm">Global Academy of Technology</span></li>
+        <li><span class="c-tertiary t-sm">Rajarajeshwari Nagar, Bengaluru</span></li>
+        <li><span class="c-tertiary t-sm">Affiliated to VTU, Belagavi</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="site-footer__bottom">
+    <span id="footer-line"></span>
+    <span>Aligned with UN SDG 11 — Sustainable Cities and Communities</span>
+  </div>
+</footer>
+
+<script type="module">
+/**
+ * Landing page controller.
+ * Populates content from config/constants.js so project facts live in one
+ * place, and starts the ambient animations.
+ */
+import { startParticles } from './animations/particles.js';
+import { startCity } from './animations/city.js';
+import { renderArchitecture } from './animations/architecture.js';
+import { initScrollReveal, initCounters } from './animations/scroll-reveal.js';
+import { PROJECT, TEAM, GUIDE, COORDINATOR, HARDWARE } from './config/constants.js';
+
+const escapeHtml = (str) => String(str ?? '')
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+/* --- Objectives — report §1.2, wording preserved ------------------------- */
+const OBJECTIVES = [
+  'Monitor garbage bin fill levels continuously and in real time using an ultrasonic sensor (HC-SR04) installed at the lid of each smart dustbin.',
+  'Process raw sensor distance readings via an ESP32 microcontroller and compute fill-level percentage using a calibrated formula.',
+  'Transmit processed bin-status data reliably to an IoT cloud platform (Firebase Realtime Database) using built-in Wi-Fi connectivity of the ESP32 module.',
+  'Generate automated alert notifications dispatched to municipal authorities or garbage collection personnel when a bin’s fill level reaches a predefined threshold of 80–90%.',
+  'Provide a real-time, centralized web and mobile dashboard that enables supervisors to monitor the status of all deployed bins simultaneously.',
+  'Reduce unnecessary waste collection trips by enabling data-driven prioritization of only those bins that require immediate attention.',
+  'Improve overall efficiency of urban waste management by achieving measurable reductions in time, fuel consumption, and manpower expenditure.',
+];
+
+document.getElementById('objectives-grid').innerHTML = OBJECTIVES.map((text, i) => `
+  <div class="objective" data-reveal="up" data-reveal-delay="${i * 50}">
+    <span class="objective__num">0${i + 1}</span>
+    <p class="objective__text">${escapeHtml(text)}</p>
+  </div>`).join('');
+
+/* --- Technology stack ---------------------------------------------------- */
+document.getElementById('stack-hardware').innerHTML = HARDWARE.map((item) => `
+  <div class="stack-item">
+    <div class="min-w-0">
+      <div class="stack-item__name">${escapeHtml(item.name)}</div>
+      <div class="stack-item__spec">${escapeHtml(item.spec)}</div>
+    </div>
+    <span class="stack-item__tag stack-item__tag--fitted">FITTED</span>
+  </div>`).join('');
+
+const SOFTWARE = [
+  { name: 'Firebase Realtime Database', spec: 'Live telemetry, history, alerts and audit trail', fitted: true },
+  { name: 'Firebase Authentication', spec: 'Email/password with role-based access control', fitted: true },
+  { name: 'Embedded C++ / Arduino IDE', spec: 'ESP32 firmware, v2.2.x toolchain', fitted: true },
+  { name: 'Vanilla JavaScript (ES modules)', spec: 'No build step, native code splitting', fitted: true },
+  { name: 'Leaflet', spec: 'Interactive mapping with OpenStreetMap tiles', fitted: true },
+  { name: 'Chart.js', spec: 'Fill trends and performance analytics', fitted: true },
+  { name: 'HTTPS / TLS', spec: 'All device and client communication', fitted: true },
+  { name: 'Machine-learning forecasting', spec: 'Predictive fill modelling', fitted: false },
+  { name: 'Road-network routing', spec: 'Dijkstra / A* over a real road graph', fitted: false },
+];
+
+document.getElementById('stack-software').innerHTML = SOFTWARE.map((item) => `
+  <div class="stack-item">
+    <div class="min-w-0">
+      <div class="stack-item__name">${escapeHtml(item.name)}</div>
+      <div class="stack-item__spec">${escapeHtml(item.spec)}</div>
+    </div>
+    <span class="stack-item__tag stack-item__tag--${item.fitted ? 'fitted' : 'planned'}">
+      ${item.fitted ? 'IN USE' : 'PHASE II'}
+    </span>
+  </div>`).join('');
+
+/* --- Research gaps ------------------------------------------------------- */
+const RESEARCH = [
+  {
+    gap: 'Monitoring and action stay disconnected. Most systems tell you a bin is full and stop there.',
+    response: 'Alert, dispatch, route, collection and resolution form one closed loop, recorded end to end in the event timeline.',
+  },
+  {
+    gap: 'Route optimisation exists in isolation from robust monitoring infrastructure.',
+    response: 'The route optimiser reads live fill levels directly and is compared against a traditional fixed round on every calculation.',
+  },
+  {
+    gap: 'Predictive analytics using historical fill data is absent from most surveyed work.',
+    response: 'Linear regression over recorded history projects hours-to-threshold per bin, labelled as statistical projection rather than machine learning.',
+  },
+  {
+    gap: 'Several reviewed systems are validated by simulation only, without saying so.',
+    response: 'Every bin declares its data source in the interface. Simulated readings are visibly badged and can never pass as live telemetry.',
+  },
+];
+
+document.getElementById('research-grid').innerHTML = RESEARCH.map((item, i) => `
+  <div class="research-item" data-reveal="up" data-reveal-delay="${i * 60}">
+    <span class="research-item__label">Identified gap</span>
+    <p class="research-item__gap">${escapeHtml(item.gap)}</p>
+    <div class="research-item__response">
+      <span class="research-item__label">Our response</span>
+      ${escapeHtml(item.response)}
+    </div>
+  </div>`).join('');
+
+/* --- Timeline ------------------------------------------------------------ */
+const PHASES = [
+  { state: 'done', label: 'Completed', title: 'Literature survey',
+    body: 'Twenty works reviewed across sensing, communication, cloud integration and routing. Three principal research gaps identified.' },
+  { state: 'done', label: 'Completed', title: 'Hardware prototype',
+    body: 'ESP32 with HC-SR04 on GPIO 5 and 18, LM2596 regulated supply, OLED, LED and buzzer. Validated at 10% fill increments against manual measurement.' },
+  { state: 'done', label: 'Completed', title: 'Firmware and cloud pipeline',
+    body: 'Five-sample rolling median filter, exponential back-off reconnection, static JSON buffers. End-to-end latency measured across 50 trials.' },
+  { state: 'current', label: 'In progress', title: 'Operations console',
+    body: 'Realtime dashboard, mapping, alerting, route optimisation, analytics and audit trail. Four-bin deployment with full data provenance labelling.' },
+  { state: 'next', label: 'Phase II', title: 'Scale and intelligence',
+    body: 'GPS positioning, machine-learning fill forecasting, road-network routing, gas and temperature sensing, solar power, and an Android/iOS field application.' },
+];
+
+document.getElementById('timeline-list').innerHTML = PHASES.map((phase, i) => `
+  <div class="phase phase--${phase.state}" data-reveal="left" data-reveal-delay="${i * 70}">
+    <span class="phase__marker" aria-hidden="true"></span>
+    <div class="phase__label">${escapeHtml(phase.label)}</div>
+    <h3 class="phase__title">${escapeHtml(phase.title)}</h3>
+    <p class="phase__body">${escapeHtml(phase.body)}</p>
+  </div>`).join('');
+
+/* --- Team ---------------------------------------------------------------- */
+document.getElementById('team-grid').innerHTML = TEAM.map((member, i) => `
+  <div class="team-card" data-reveal="up" data-reveal-delay="${i * 60}">
+    <div class="team-card__avatar" aria-hidden="true">${
+      escapeHtml(member.name.split(' ').map((w) => w[0]).slice(0, 2).join(''))
+    }</div>
+    <div class="team-card__name">${escapeHtml(member.name)}</div>
+    <div class="team-card__usn">${escapeHtml(member.usn)}</div>
+    <div class="team-card__role">${escapeHtml(member.role)}</div>
+    <a class="team-card__email" href="mailto:${escapeHtml(member.email)}">${escapeHtml(member.email)}</a>
+  </div>`).join('');
+
+document.getElementById('faculty').innerHTML = `
+  <div class="row" style="gap:var(--space-4); flex:1; min-width:260px">
+    <div class="team-card__avatar" style="margin:0" aria-hidden="true">KS</div>
+    <div class="min-w-0">
+      <div class="team-card__name">${escapeHtml(GUIDE.name)}</div>
+      <div class="t-xs c-secondary mt-1">${escapeHtml(GUIDE.title)} · Project Guide</div>
+      <div class="t-2xs c-tertiary mono mt-1">${escapeHtml(GUIDE.dept)}</div>
+    </div>
+  </div>
+  <div class="row" style="gap:var(--space-4); flex:1; min-width:260px">
+    <div class="team-card__avatar" style="margin:0; color:var(--sb-blue-400);
+         background:rgba(59,130,246,0.10); border-color:rgba(59,130,246,0.26)" aria-hidden="true">SH</div>
+    <div class="min-w-0">
+      <div class="team-card__name">${escapeHtml(COORDINATOR.name)}</div>
+      <div class="t-xs c-secondary mt-1">${escapeHtml(COORDINATOR.title)}</div>
+      <div class="t-2xs c-tertiary mono mt-1">${escapeHtml(COORDINATOR.dept)}</div>
+    </div>
+  </div>`;
+
+/* --- Footer line --------------------------------------------------------- */
+document.getElementById('footer-line').textContent =
+  `© ${PROJECT.academicYear} ${PROJECT.name} · Group ${PROJECT.groupNo} · ${PROJECT.courseCode} · Project ${PROJECT.projectId}`;
+
+/* --- Telemetry marquee ---------------------------------------------------
+   Illustrative sample readings, not live data — the console is where live
+   telemetry appears. Kept generic so it cannot be mistaken for real bins. */
+const SAMPLE_TELEMETRY = [
+  { text: 'HC-SR04 · echo 5.0 cm · fill 75%', tone: 'amber' },
+  { text: 'ESP32 · median filter · 5 samples', tone: 'green' },
+  { text: 'Wi-Fi · HTTPS · 60 s interval', tone: 'blue' },
+  { text: 'Firebase · realtime sync', tone: 'blue' },
+  { text: 'Threshold 80% · alert dispatched', tone: 'red' },
+  { text: 'Route · nearest-neighbour + 2-opt', tone: 'green' },
+  { text: 'Collection logged · alerts resolved', tone: 'green' },
+  { text: 'Reconnect back-off · 1 s → 30 s', tone: 'amber' },
+];
+
+const toneVar = { green: '--sb-green-500', amber: '--sb-amber-500',
+                  red: '--sb-red-500', blue: '--sb-blue-500' };
+
+// Duplicated once so the marquee loops seamlessly at -50%.
+document.getElementById('telemetry-track').innerHTML =
+  [...SAMPLE_TELEMETRY, ...SAMPLE_TELEMETRY].map((item) => `
+    <span class="telemetry-item">
+      <span class="telemetry-item__dot" style="background:var(${toneVar[item.tone]})"></span>
+      ${escapeHtml(item.text)}
+    </span>`).join('');
+
+/* --- Animations ---------------------------------------------------------- */
+startParticles(document.getElementById('hero-particles'));
+startCity(document.getElementById('city-canvas'));
+renderArchitecture(document.getElementById('architecture-mount'));
+
+// Reveal must initialise after the dynamic content above exists, or the
+// observer has nothing to watch.
+initScrollReveal();
+initCounters();
+
+/* --- 3D bin --------------------------------------------------------------
+   Loaded lazily: Three.js is ~600 KB and most visitors never scroll this far.
+   The IntersectionObserver defers the import until the section is close. */
+const bin3dContainer = document.getElementById('bin3d-container');
+
+const binObserver = new IntersectionObserver(async (entries) => {
+  if (!entries[0].isIntersecting) return;
+  binObserver.disconnect();
+
+  let bin;
+  try {
+    const { createBin3D } = await import('./models/bin3d.js');
+    bin = await createBin3D(bin3dContainer);
+  } catch (err) {
+    console.error('[landing] 3D bin failed to load', err);
+    bin3dContainer.innerHTML = `
+      <div style="display:flex; align-items:center; justify-content:center;
+                  height:100%; padding:24px; text-align:center;
+                  font-size:13px; color:var(--text-tertiary)">
+        The 3D model could not be loaded. Everything else on this page works
+        without it.
+      </div>`;
+    return;
+  }
+
+  const slider    = document.getElementById('bin3d-slider');
+  const readout   = document.getElementById('bin3d-readout');
+  const statusEl  = document.getElementById('bin3d-status');
+  const bandEl    = document.getElementById('bin3d-band');
+  const distEl    = document.getElementById('bin3d-distance');
+  const lidBtn    = document.getElementById('bin3d-lid');
+  const fillBtn   = document.getElementById('bin3d-fill');
+  const collectBtn = document.getElementById('bin3d-collect');
+
+  const DEPTH_CM = 20;   // report §3.3
+
+  /** Mirrors js/utils/fill.js and sensor.h — one formula, three places. */
+  const updateReadout = (pct) => {
+    readout.textContent = Math.round(pct) + '%';
+
+    // Inverse of the fill formula: d = d_max × (1 − pct/100)
+    distEl.textContent = (DEPTH_CM * (1 - pct / 100)).toFixed(1) + ' cm';
+
+    const band = pct >= 80 ? { key: 'critical', label: 'Full' }
+               : pct >= 51 ? { key: 'warning',  label: 'Half' }
+               : { key: 'healthy', label: 'Empty' };
+
+    bandEl.textContent = band.label;
+    statusEl.className = `pill pill--${band.key}`;
+    statusEl.innerHTML = `<span class="pill__dot"></span>${band.label.toUpperCase()}`;
+
+    readout.style.color =
+      band.key === 'critical' ? 'var(--status-critical)'
+      : band.key === 'warning' ? 'var(--status-warning)'
+      : 'var(--status-healthy)';
+  };
+
+  slider.addEventListener('input', () => {
+    const pct = Number(slider.value);
+    bin.setFill(pct);
+    updateReadout(pct);
+  });
+
+  lidBtn.addEventListener('click', () => {
+    bin.toggleLid();
+    lidBtn.textContent = lidBtn.textContent === 'Open lid' ? 'Close lid' : 'Open lid';
+  });
+
+  fillBtn.addEventListener('click', () => {
+    slider.value = 85;
+    bin.setFill(85);
+    updateReadout(85);
+  });
+
+  collectBtn.addEventListener('click', async () => {
+    collectBtn.disabled = true;
+    lidBtn.textContent = 'Close lid';
+
+    await bin.collect();
+
+    slider.value = 0;
+    updateReadout(0);
+    lidBtn.textContent = 'Open lid';
+    collectBtn.disabled = false;
+  });
+
+  updateReadout(0);
+}, { rootMargin: '300px' });
+
+binObserver.observe(bin3dContainer);
+
+/* --- Nav border on scroll ------------------------------------------------ */
+const nav = document.getElementById('site-nav');
+const onScroll = () => nav.classList.toggle('is-scrolled', window.scrollY > 20);
+window.addEventListener('scroll', onScroll, { passive: true });
+onScroll();
+</script>
+</body>
+</html>

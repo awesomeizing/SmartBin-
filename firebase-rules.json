@@ -1,0 +1,118 @@
+{
+  "_comment": "SmartBin+ Realtime Database security rules. Satisfies report §3.2 Security: 'Firebase Authentication shall be configured to restrict dashboard access to authorized municipal accounts.' Paste into Firebase Console → Realtime Database → Rules → Publish. Hiding a button in the UI is not security; these rules are the enforcement layer.",
+
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "bins": {
+      ".read": "auth != null",
+
+      "$binId": {
+        "meta": {
+          ".write": "root.child('users').child(auth.uid).child('role').val() === 'administrator'",
+          ".validate": "newData.hasChildren(['binId', 'label', 'zone', 'depthCm', 'source'])",
+          "depthCm":      { ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= 400" },
+          "thresholdPct": { ".validate": "newData.isNumber() && newData.val() >= 80 && newData.val() <= 90" },
+          "source":       { ".validate": "newData.val() === 'device' || newData.val() === 'simulated' || newData.val() === 'placeholder'" },
+          "location": {
+            "lat": { ".validate": "newData.isNumber() && newData.val() >= -90  && newData.val() <= 90" },
+            "lng": { ".validate": "newData.isNumber() && newData.val() >= -180 && newData.val() <= 180" }
+          }
+        },
+
+        "live": {
+          "_comment": "Written by the ESP32 (device token) or by an administrator running the Simulation Engine.",
+          ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'administrator' || auth.token.device === true)",
+          ".validate": "newData.hasChildren(['distanceCm', 'fillPct', 'binStatus', 'timestamp'])",
+          "distanceCm":    { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 400" },
+          "fillPct":       { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100" },
+          "binStatus":     { ".validate": "newData.val() === 'Empty' || newData.val() === 'Half' || newData.val() === 'Full'" },
+          "messageStatus": { ".validate": "newData.val() === 'Delivered' || newData.val() === 'Failed'" },
+          "batteryPct":    { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100" },
+          "rssi":          { ".validate": "newData.isNumber() && newData.val() >= -120 && newData.val() <= 0" },
+          "timestamp":     { ".validate": "newData.isNumber()" }
+        },
+
+        "health": {
+          ".write": "auth != null",
+          "healthScore": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100" }
+        },
+
+        "reserved": {
+          "_comment": "Phase-II sensor placeholders — temperature, humidity, gas. No hardware fitted; written only by the Simulation Engine and always labelled as such in the UI.",
+          ".write": "auth != null"
+        }
+      }
+    },
+
+    "history": {
+      ".read": "auth != null",
+      "$binId": {
+        ".write": "auth != null",
+        ".indexOn": ["timestamp"],
+        "$pushId": {
+          ".validate": "newData.hasChildren(['fillPct', 'timestamp'])",
+          "fillPct":   { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100" },
+          "timestamp": { ".validate": "newData.isNumber()" }
+        }
+      }
+    },
+
+    "alerts": {
+      ".read": "auth != null",
+      ".indexOn": ["state", "severity", "raisedAt", "binId"],
+      "$alertId": {
+        ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() !== 'user'",
+        ".validate": "newData.hasChildren(['binId', 'severity', 'type', 'raisedAt', 'state'])",
+        "severity": { ".validate": "newData.val() === 'critical' || newData.val() === 'warning' || newData.val() === 'info'" },
+        "state":    { ".validate": "newData.val() === 'active' || newData.val() === 'acknowledged' || newData.val() === 'resolved'" },
+        "acknowledgedBy": { ".validate": "newData.val() === auth.uid" }
+      }
+    },
+
+    "events": {
+      "_comment": "Append-only audit trail. Maps to data store D2 'Logs & History' in report §4.3.2. Existing entries cannot be edited or deleted by clients.",
+      ".read": "auth != null",
+      ".indexOn": ["timestamp", "kind", "binId"],
+      "$eventId": {
+        ".write": "auth != null && !data.exists()",
+        ".validate": "newData.hasChildren(['kind', 'timestamp'])",
+        "timestamp": { ".validate": "newData.isNumber()" }
+      }
+    },
+
+    "trucks": {
+      ".read": "auth != null",
+      "$truckId": {
+        ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() !== 'user'"
+      }
+    },
+
+    "routes": {
+      ".read": "auth != null",
+      ".indexOn": ["createdAt"],
+      "$routeId": {
+        ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() !== 'user'"
+      }
+    },
+
+    "config": {
+      ".read": "auth != null",
+      ".write": "root.child('users').child(auth.uid).child('role').val() === 'administrator'",
+      "defaultThresholdPct": { ".validate": "newData.isNumber() && newData.val() >= 80 && newData.val() <= 90" },
+      "pollIntervalSec":     { ".validate": "newData.isNumber() && newData.val() >= 10 && newData.val() <= 3600" },
+      "simulationMode":      { ".validate": "newData.isBoolean()" }
+    },
+
+    "users": {
+      "$uid": {
+        ".read": "auth.uid === $uid || root.child('users').child(auth.uid).child('role').val() === 'administrator'",
+        ".write": "root.child('users').child(auth.uid).child('role').val() === 'administrator'",
+        "role": {
+          ".validate": "newData.val() === 'user' || newData.val() === 'municipality' || newData.val() === 'administrator'"
+        }
+      }
+    }
+  }
+}

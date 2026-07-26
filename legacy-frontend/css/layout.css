@@ -1,0 +1,282 @@
+/* ==========================================================================
+   SmartBin+ — Layout
+   App shell, grids, sections, stacks. Structure only, no decoration.
+   Depends on: tokens.css
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   APP SHELL — dashboard.html
+   Two columns: fixed sidebar, scrolling content. Header is sticky inside
+   the content column so the sidebar never scrolls with it.
+   -------------------------------------------------------------------------- */
+.app-shell {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) 1fr;
+  min-height: 100vh;
+  transition: grid-template-columns var(--duration-base) var(--ease-standard);
+}
+
+.app-shell[data-sidebar="collapsed"] {
+  grid-template-columns: var(--sidebar-width-collapsed) 1fr;
+}
+
+.app-sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: var(--surface-raised);
+  border-right: 1px solid var(--border-subtle);
+  z-index: var(--z-sticky);
+}
+
+.app-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;   /* lets grid children shrink instead of overflowing */
+}
+
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-nav);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  height: var(--nav-height);
+  padding: 0 var(--gutter);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.app-content {
+  flex: 1;
+  padding: var(--space-6) var(--gutter) var(--space-16);
+  min-width: 0;
+}
+
+/* --------------------------------------------------------------------------
+   PAGE HEADER — inside app-content
+   -------------------------------------------------------------------------- */
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-6);
+  margin-bottom: var(--space-6);
+  flex-wrap: wrap;
+}
+
+.page-header__title {
+  font-size: var(--text-2xl);
+  letter-spacing: var(--tracking-tighter);
+}
+
+.page-header__subtitle {
+  margin-top: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.page-header__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+/* --------------------------------------------------------------------------
+   MARKETING SECTIONS — index.html
+   -------------------------------------------------------------------------- */
+.section {
+  position: relative;
+  width: 100%;
+}
+
+.section__inner {
+  max-width: var(--content-max);
+  margin-inline: auto;
+  padding: var(--space-24) var(--space-12);
+}
+
+.section__inner--wide { max-width: var(--content-max-wide); }
+.section__inner--tight { padding-block: var(--space-16); }
+
+.section__header {
+  margin-bottom: var(--space-12);
+}
+
+.section__tag {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--sb-green-500);
+  margin-bottom: var(--space-3);
+}
+
+.section__title {
+  font-size: var(--text-4xl);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tighter);
+}
+
+/* Accent word inside a heading — <em> is reset to non-italic on purpose */
+.section__title em,
+.hero__title em {
+  font-style: normal;
+  color: var(--sb-green-500);
+}
+
+.section__rule {
+  width: 36px;
+  height: 2px;
+  margin-top: var(--space-4);
+  background: var(--sb-green-500);
+  border-radius: var(--radius-full);
+}
+
+.section__lede {
+  max-width: 62ch;
+  margin-top: var(--space-4);
+  font-size: var(--text-md);
+  line-height: var(--leading-relaxed);
+  color: var(--text-secondary);
+}
+
+/* --------------------------------------------------------------------------
+   GRIDS
+   -------------------------------------------------------------------------- */
+.grid { display: grid; gap: var(--space-4); }
+
+.grid--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.grid--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.grid--4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.grid--6 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+
+/* Auto-fit grids — preferred for card collections so the layout adapts
+   to however many bins exist rather than assuming a count. */
+.grid--auto-sm { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.grid--auto-md { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+.grid--auto-lg { grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); }
+
+.grid--gap-sm { gap: var(--space-2); }
+.grid--gap-lg { gap: var(--space-6); }
+
+/* Split layouts — map/sidebar, chart/legend */
+.split-sidebar {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  gap: var(--space-4);
+}
+
+.split-sidebar--right { grid-template-columns: minmax(0, 1fr) 340px; }
+.split-even { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-6); }
+
+/* Column spans */
+.span-2 { grid-column: span 2; }
+.span-3 { grid-column: span 3; }
+.span-4 { grid-column: span 4; }
+.span-full { grid-column: 1 / -1; }
+
+/* --------------------------------------------------------------------------
+   FLEX HELPERS
+   -------------------------------------------------------------------------- */
+.stack { display: flex; flex-direction: column; gap: var(--space-4); }
+.stack--sm { gap: var(--space-2); }
+.stack--lg { gap: var(--space-6); }
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.row--between { justify-content: space-between; }
+.row--center   { justify-content: center; }
+.row--end      { justify-content: flex-end; }
+.row--top      { align-items: flex-start; }
+.row--baseline { align-items: baseline; }
+.row--wrap     { flex-wrap: wrap; }
+.row--sm       { gap: var(--space-2); }
+.row--lg       { gap: var(--space-6); }
+
+.spacer { flex: 1 1 auto; }
+
+/* --------------------------------------------------------------------------
+   SCROLL CONTAINERS
+   Panels that scroll internally — alert feed, bin list, timeline.
+   -------------------------------------------------------------------------- */
+.scroll-y {
+  overflow-y: auto;
+  overscroll-behavior: contain;   /* stops scroll chaining to the page */
+}
+
+.scroll-y--sm { max-height: 280px; }
+.scroll-y--md { max-height: 420px; }
+.scroll-y--lg { max-height: 620px; }
+
+/* --------------------------------------------------------------------------
+   RESPONSIVE
+   Breakpoints: 1280 / 1024 / 768 / 480
+   -------------------------------------------------------------------------- */
+
+/* Laptop — sidebar collapses to icons */
+@media (max-width: 1280px) {
+  .app-shell { grid-template-columns: var(--sidebar-width-collapsed) 1fr; }
+  .grid--6 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .split-sidebar { grid-template-columns: 260px minmax(0, 1fr); }
+}
+
+/* Tablet — stack split layouts, sidebar becomes an off-canvas drawer */
+@media (max-width: 1024px) {
+  .app-shell { grid-template-columns: 1fr; }
+
+  .app-sidebar {
+    position: fixed;
+    inset-block: 0;
+    inset-inline-start: 0;
+    width: var(--sidebar-width);
+    transform: translateX(-100%);
+    transition: transform var(--duration-base) var(--ease-standard);
+    z-index: var(--z-overlay);
+  }
+
+  .app-shell[data-sidebar="open"] .app-sidebar { transform: translateX(0); }
+
+  .split-sidebar,
+  .split-sidebar--right,
+  .split-even { grid-template-columns: 1fr; }
+
+  .grid--4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .section__inner { padding: var(--space-16) var(--space-8); }
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+  .grid--2,
+  .grid--3,
+  .grid--4,
+  .grid--6 { grid-template-columns: 1fr; }
+
+  .span-2, .span-3, .span-4 { grid-column: span 1; }
+
+  .app-content { padding: var(--space-4) var(--gutter-mobile) var(--space-12); }
+  .app-header  { padding-inline: var(--gutter-mobile); }
+  .section__inner { padding: var(--space-12) var(--gutter-mobile); }
+
+  .page-header { flex-direction: column; gap: var(--space-4); }
+
+  /* KPI tiles stay two-up on phones — one-up wastes too much vertical space */
+  .grid--auto-sm { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 480px) {
+  .grid--auto-sm { grid-template-columns: 1fr; }
+  .section__title { font-size: var(--text-2xl); }
+}

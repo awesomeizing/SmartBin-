@@ -1,0 +1,157 @@
+/* ==========================================================================
+   SmartBin+ — Utilities
+   Small single-purpose classes. Kept deliberately short: if a pattern needs
+   more than two utilities to express, it belongs in a component stylesheet.
+   Depends on: tokens.css
+   ========================================================================== */
+
+/* --- Text ---------------------------------------------------------------- */
+.t-2xs  { font-size: var(--text-2xs); }
+.t-xs   { font-size: var(--text-xs); }
+.t-sm   { font-size: var(--text-sm); }
+.t-base { font-size: var(--text-base); }
+.t-md   { font-size: var(--text-md); }
+.t-lg   { font-size: var(--text-lg); }
+.t-xl   { font-size: var(--text-xl); }
+.t-2xl  { font-size: var(--text-2xl); }
+
+.t-display { font-family: var(--font-display); }
+.t-body    { font-family: var(--font-body); }
+.t-mono    { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+.fw-regular  { font-weight: var(--weight-regular); }
+.fw-medium   { font-weight: var(--weight-medium); }
+.fw-semibold { font-weight: var(--weight-semibold); }
+.fw-bold     { font-weight: var(--weight-bold); }
+.fw-extra    { font-weight: var(--weight-extra); }
+
+.c-primary   { color: var(--text-primary); }
+.c-secondary { color: var(--text-secondary); }
+.c-tertiary  { color: var(--text-tertiary); }
+.c-green     { color: var(--sb-green-500); }
+.c-blue      { color: var(--sb-blue-500); }
+.c-healthy   { color: var(--status-healthy); }
+.c-warning   { color: var(--status-warning); }
+.c-critical  { color: var(--status-critical); }
+.c-offline   { color: var(--status-offline); }
+
+.ta-left   { text-align: left; }
+.ta-center { text-align: center; }
+.ta-right  { text-align: right; }
+
+.tt-upper { text-transform: uppercase; }
+.tr-wide  { letter-spacing: var(--tracking-wide); }
+.tr-wider { letter-spacing: var(--tracking-wider); }
+
+/* Truncation */
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* --- Spacing ------------------------------------------------------------- */
+.m-0 { margin: 0; }
+.mt-1 { margin-top: var(--space-1); }
+.mt-2 { margin-top: var(--space-2); }
+.mt-3 { margin-top: var(--space-3); }
+.mt-4 { margin-top: var(--space-4); }
+.mt-6 { margin-top: var(--space-6); }
+.mt-8 { margin-top: var(--space-8); }
+.mb-1 { margin-bottom: var(--space-1); }
+.mb-2 { margin-bottom: var(--space-2); }
+.mb-3 { margin-bottom: var(--space-3); }
+.mb-4 { margin-bottom: var(--space-4); }
+.mb-6 { margin-bottom: var(--space-6); }
+.mb-8 { margin-bottom: var(--space-8); }
+
+.p-0 { padding: 0; }
+.p-2 { padding: var(--space-2); }
+.p-3 { padding: var(--space-3); }
+.p-4 { padding: var(--space-4); }
+.p-5 { padding: var(--space-5); }
+.p-6 { padding: var(--space-6); }
+
+/* --- Display & sizing ---------------------------------------------------- */
+.d-none         { display: none; }
+.d-block        { display: block; }
+.d-flex         { display: flex; }
+.d-inline-flex  { display: inline-flex; }
+.d-grid         { display: grid; }
+
+.w-full { width: 100%; }
+.h-full { height: 100%; }
+.min-w-0 { min-width: 0; }
+.flex-1  { flex: 1 1 0%; }
+.shrink-0 { flex-shrink: 0; }
+
+/* --- Position ------------------------------------------------------------ */
+.pos-relative { position: relative; }
+.pos-absolute { position: absolute; }
+.pos-fixed    { position: fixed; }
+.pos-sticky   { position: sticky; }
+.inset-0      { inset: 0; }
+
+/* --- Borders & radius ---------------------------------------------------- */
+.rounded-sm   { border-radius: var(--radius-sm); }
+.rounded-md   { border-radius: var(--radius-md); }
+.rounded-lg   { border-radius: var(--radius-lg); }
+.rounded-full { border-radius: var(--radius-full); }
+
+.border    { border: 1px solid var(--border-subtle); }
+.border-t  { border-top: 1px solid var(--border-subtle); }
+.border-b  { border-bottom: 1px solid var(--border-subtle); }
+.border-none { border: none; }
+
+/* --- Surfaces ------------------------------------------------------------ */
+.bg-base    { background: var(--surface-base); }
+.bg-raised  { background: var(--surface-raised); }
+.bg-inset   { background: var(--surface-inset); }
+.bg-overlay { background: var(--surface-overlay); }
+
+.shadow-sm { box-shadow: var(--shadow-sm); }
+.shadow-md { box-shadow: var(--shadow-md); }
+.shadow-lg { box-shadow: var(--shadow-lg); }
+
+/* --- Interaction --------------------------------------------------------- */
+.cursor-pointer { cursor: pointer; }
+.cursor-default { cursor: default; }
+.pointer-none   { pointer-events: none; }
+.select-none    { user-select: none; }
+
+.opacity-0  { opacity: 0; }
+.opacity-50 { opacity: 0.5; }
+.opacity-70 { opacity: 0.7; }
+
+/* Disabled state — one definition, used everywhere */
+.is-disabled,
+[aria-disabled="true"] {
+  opacity: 0.45;
+  pointer-events: none;
+  cursor: not-allowed;
+}
+
+/* --- Overflow ------------------------------------------------------------ */
+.overflow-hidden { overflow: hidden; }
+.overflow-auto   { overflow: auto; }
+
+/* --- Responsive visibility ----------------------------------------------- */
+@media (max-width: 1024px) {
+  .hide-tablet { display: none !important; }
+}
+
+@media (max-width: 768px) {
+  .hide-mobile { display: none !important; }
+}
+
+@media (min-width: 769px) {
+  .show-mobile-only { display: none !important; }
+}

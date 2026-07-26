@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>About · SmartBin+</title>
+<meta name="description" content="Project abstract, problem statement, scope, methodology, results and future scope for SmartBin+ — an IoT-based intelligent waste monitoring and route optimization system.">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@400;500;600&family=Outfit:wght@700;800&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="css/tokens.css">
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/layout.css">
+<link rel="stylesheet" href="css/glass.css">
+<link rel="stylesheet" href="css/animations.css">
+<link rel="stylesheet" href="css/utilities.css">
+<link rel="stylesheet" href="pages/landing/landing.css">
+
+<style>
+  .prose { max-width: 68ch; }
+  .prose p {
+    font-size: var(--text-base);
+    line-height: var(--leading-relaxed);
+    color: var(--text-secondary);
+    margin-bottom: var(--space-4);
+  }
+  .prose p:last-child { margin-bottom: 0; }
+  .prose strong { color: var(--text-primary); font-weight: var(--weight-semibold); }
+
+  .quote {
+    padding: var(--space-5) var(--space-6);
+    margin: var(--space-6) 0;
+    background: var(--surface-inset);
+    border-left: 2px solid var(--sb-green-500);
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  }
+  .quote p {
+    font-size: var(--text-base);
+    line-height: var(--leading-relaxed);
+    color: var(--text-secondary);
+    margin: 0;
+  }
+  .quote cite {
+    display: block;
+    margin-top: var(--space-3);
+    font-family: var(--font-mono);
+    font-size: var(--text-2xs);
+    font-style: normal;
+    letter-spacing: var(--tracking-wide);
+    color: var(--text-tertiary);
+  }
+
+  .layer {
+    padding: var(--space-5);
+    background: var(--surface-raised);
+    border: 1px solid var(--border-subtle);
+    border-top: 2px solid var(--sb-green-500);
+    border-radius: var(--radius-lg);
+    height: 100%;
+  }
+  .layer__num {
+    font-family: var(--font-mono);
+    font-size: var(--text-2xs);
+    letter-spacing: var(--tracking-wider);
+    color: var(--sb-green-500);
+  }
+  .layer__title {
+    margin-top: var(--space-2);
+    font-size: var(--text-md);
+    font-weight: var(--weight-semibold);
+    color: var(--text-primary);
+  }
+  .layer__body {
+    margin-top: var(--space-3);
+    font-size: var(--text-sm);
+    line-height: var(--leading-normal);
+    color: var(--text-secondary);
+  }
+
+  .result-tile {
+    padding: var(--space-5);
+    text-align: center;
+    background: var(--surface-raised);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+  }
+  .result-tile__value {
+    font-family: var(--font-display);
+    font-size: var(--text-2xl);
+    font-weight: var(--weight-extra);
+    letter-spacing: var(--tracking-tighter);
+    color: var(--sb-green-500);
+    font-variant-numeric: tabular-nums;
+  }
+  .result-tile__label {
+    margin-top: var(--space-2);
+    font-size: var(--text-xs);
+    color: var(--text-tertiary);
+  }
+
+  .future-item {
+    display: flex;
+    gap: var(--space-4);
+    padding: var(--space-4) 0;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .future-item:last-child { border-bottom: none; }
+  .future-item__marker {
+    flex-shrink: 0;
+    width: 6px; height: 6px;
+    margin-top: 8px;
+    border-radius: var(--radius-full);
+    background: var(--sb-blue-500);
+  }
+  .future-item__title {
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semibold);
+    color: var(--text-primary);
+  }
+  .future-item__body {
+    margin-top: var(--space-1);
+    font-size: var(--text-xs);
+    line-height: var(--leading-normal);
+    color: var(--text-secondary);
+  }
+
+  .limitation {
+    padding: var(--space-4) var(--space-5);
+    margin-bottom: var(--space-3);
+    background: var(--surface-raised);
+    border: 1px solid var(--border-subtle);
+    border-left: 2px solid var(--sb-amber-500);
+    border-radius: var(--radius-md);
+  }
+</style>
+</head>
+
+<body>
+<a class="skip-link" href="#main">Skip to main content</a>
+
+<nav class="site-nav is-scrolled" aria-label="Main navigation">
+  <a class="site-nav__logo" href="index.html">
+    <span aria-hidden="true" style="color:var(--sb-green-500)">
+      <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+      </svg>
+    </span>
+    Smart<em>Bin</em>+
+  </a>
+
+  <ul class="site-nav__links">
+    <li><a href="index.html">Home</a></li>
+    <li><a href="#abstract">Abstract</a></li>
+    <li><a href="#scope">Scope</a></li>
+    <li><a href="#results">Results</a></li>
+    <li><a href="#future">Future scope</a></li>
+  </ul>
+
+  <a class="btn-nav" href="login.html">Open console</a>
+</nav>
+
+<main id="main">
+
+<!-- ====================== HEADER ====================== -->
+<section class="section" style="padding-top:var(--nav-height)">
+  <div class="section__inner">
+    <header class="section__header">
+      <div class="section__tag">// major project phase-I · CSEP23605</div>
+      <h1 class="section__title" style="font-size:var(--text-4xl)">
+        SmartBin+: An IoT Based Intelligent Waste Monitoring and
+        <em>Route Optimization System</em>
+      </h1>
+      <div class="section__rule"></div>
+      <p class="section__lede">
+        Submitted in partial fulfillment of the requirements for the award of the
+        degree of Bachelor of Engineering in Computer Science and Engineering,
+        Visvesvaraya Technological University, Belagavi. Academic Year 2025–2026.
+      </p>
+    </header>
+  </div>
+</section>
+
+<!-- ====================== ABSTRACT ====================== -->
+<section class="section" id="abstract" style="background:var(--surface-raised)">
+  <div class="section__inner">
+    <header class="section__header" data-reveal="up">
+      <div class="section__tag">// abstract</div>
+      <h2 class="section__title">The <em>problem</em>, and the proposal</h2>
+      <div class="section__rule"></div>
+    </header>
+
+    <div class="prose" data-reveal="up">
+      <p>
+        Rapid urbanization and population growth have intensified the challenge of
+        municipal solid waste management in smart cities worldwide, rendering
+        traditional fixed-schedule collection methods grossly inadequate.
+        Overflowing bins in high-footfall zones, unnecessary vehicular trips to
+        partially filled bins, escalating operational costs, and deteriorating
+        public hygiene collectively underscore the urgent need for a data-driven,
+        intelligent waste management paradigm.
+      </p>
+      <p>
+        This project proposes <strong>SmartBin+</strong>, an IoT-based intelligent
+        waste monitoring and route optimization system designed to transform
+        conventional waste collection into an automated, real-time, and
+        efficiency-maximizing operation. The system employs an ultrasonic sensor
+        (HC-SR04) mounted inside each dustbin to continuously measure the fill
+        level by computing the distance between the sensor and the waste surface.
+        The processed distance data is converted into fill-level percentage and
+        transmitted wirelessly via Wi-Fi to an IoT cloud platform (Firebase
+        Realtime Database) using an ESP32 microcontroller.
+      </p>
+      <p>
+        A web dashboard provides municipal authorities with live bin-status
+        visualization, while an automated alert notification is dispatched when
+        any bin surpasses a predefined threshold of 80–90% capacity. The modular,
+        three-layer architecture comprising the sensor layer, communication and
+        cloud layer, and application layer ensures scalability, maintainability,
+        and adaptability to diverse urban deployments.
+      </p>
+      <p>
+        SmartBin+ delivers a cost-effective, energy-aware, and highly automated
+        solution that significantly reduces manual inspections, optimizes waste
+        collection routing, prevents overflow incidents, and contributes
+        meaningfully to the realization of sustainable smart-city infrastructure
+        aligned with <strong>United Nations Sustainable Development Goal 11</strong>.
+      </p>
+    </div>
+
+    <div class="quote" data-reveal="up">
+      <p>
+        “Municipal waste collection systems across most urban centers continue to
+        operate on rigid, time-based schedules that bear no relationship to the
+        actual fill state of individual bins. This fundamental disconnect between
+        operational planning and ground reality produces a cascade of
+        inefficiencies: bins in commercial districts overflow and create public
+        health hazards before scheduled collection visits, while bins in
+        low-traffic residential zones receive unnecessary collections when barely
+        20% full.”
+      </p>
+      <cite>Project report §1.1 — Problem Statement</cite>
+    </div>
+  </div>
+</section>
+
+<!-- ====================== ARCHITECTURE LAYERS ====================== -->
+<section class="section" id="scope">
+  <div class="section__inner">
+    <header class="section__header" data-reveal="up">
+      <div class="section__tag">// system design</div>
+      <h2 class="section__title">Three layers, <em>independently scalable</em></h2>
+      <div class="section__rule"></div>
+      <p class="section__lede">
+        SmartBin+ is architected as a modular, three-layer, event-driven IoT
+        system that decouples sensing, communication, and presentation concerns
+        into independently operable and scalable subsystems.
+      </p>
+    </header>
+
+    <div class="grid grid--3">
+      <div class="layer" data-reveal="up">
+        <div class="layer__num">LAYER 01</div>
+        <div class="layer__title">Sensor Layer</div>
+        <p class="layer__body">
+          ESP32 microcontrollers and HC-SR04 ultrasonic sensors deployed on
+          individual dustbins. Responsible for physical-world data acquisition:
+          distance measurement, outlier rejection, median filtering, fill-level
+          computation and local status indication via OLED, LED and buzzer.
+        </p>
+      </div>
+
+      <div class="layer" data-reveal="up" data-reveal-delay="80">
+        <div class="layer__num">LAYER 02</div>
+        <div class="layer__title">Communication &amp; Cloud Layer</div>
+        <p class="layer__body">
+          Manages Wi-Fi transmission over HTTPS, Firebase Realtime Database
+          storage, and threshold-based alert logic. Includes retry with
+          exponential back-off, authenticated writes, and rule-enforced access
+          control.
+        </p>
+      </div>
+
+      <div class="layer" data-reveal="up" data-reveal-delay="160">
+        <div class="layer__num">LAYER 03</div>
+        <div class="layer__title">Application Layer</div>
+        <p class="layer__body">
+          Delivers a live monitoring dashboard to authorized users: bin status,
+          geographic mapping, alerting, route optimisation, analytics and the
+          complete event audit trail.
+        </p>
+      </div>
+    </div>
+
+    <div class="prose mt-8" data-reveal="up">
+      <p>
+        Each layer communicates with adjacent layers through well-defined
+        interfaces, enabling components to be upgraded or replaced without
+        cascading impact on the rest of the system. The design prioritizes
+        real-time data freshness, low-latency alerting, fault-tolerant
+        transmission with retry logic, and a responsive user interface accessible
+        from any web-enabled device.
+      </p>
+      <p>
+        The modular, layered design ensures the system can be horizontally scaled:
+        adding new bin units requires only hardware replication and cloud
+        registration, with <strong>zero modifications to the core software
+        architecture</strong>.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ====================== RESULTS ====================== -->
+<section class="section" id="results" style="background:var(--surface-raised)">
+  <div class="section__inner">
+    <header class="section__header" data-reveal="up">
+      <div class="section__tag">// implementation &amp; results</div>
+      <h2 class="section__title">What was <em>measured</em></h2>
+      <div class="section__rule"></div>
+      <p class="section__lede">
+        The dustbin was filled incrementally in 10% steps from empty to full using
+        a controlled-volume test medium. Sensor readings were captured at each
+        step and compared against manually measured fill levels. End-to-end
+        latency was measured across 50 trials.
+      </p>
+    </header>
+
+    <div class="grid grid--3 mb-8">
+      <div class="result-tile" data-reveal="up">
+        <div class="result-tile__value">95%</div>
+        <div class="result-tile__label">Prototype detection accuracy</div>
+      </div>
+      <div class="result-tile" data-reveal="up" data-reveal-delay="80">
+        <div class="result-tile__value">6.8 s</div>
+        <div class="result-tile__label">Mean sensor-to-cloud latency, 50 trials</div>
+      </div>
+      <div class="result-tile" data-reveal="up" data-reveal-delay="160">
+        <div class="result-tile__value">4.95 V</div>
+        <div class="result-tile__label">Average power supply stability</div>
+      </div>
+    </div>
+
+    <h3 class="kpi-group__title" data-reveal="up">Implementation issues resolved</h3>
+
+    <div class="prose" data-reveal="up">
+      <p>
+        <strong>Sensor noise and echo artifacts.</strong> The HC-SR04 occasionally
+        produced spurious readings when waste material was positioned at oblique
+        angles to the sensor beam. A five-sample rolling median filter was
+        implemented to suppress transient outliers without introducing
+        perceptible latency.
+      </p>
+      <p>
+        <strong>Wi-Fi reconnection handling.</strong> Intermittent disconnections
+        caused data gaps in the Firebase timeline. An automatic reconnection
+        handler with exponential back-off — initial retry 1 s, maximum 30 s — was
+        added to ensure resilient cloud connectivity.
+      </p>
+      <p>
+        <strong>Power supply stability.</strong> Early testing with a direct USB
+        5 V supply revealed voltage sag during ESP32 Wi-Fi radio bursts, causing
+        sporadic microcontroller resets. Replacing the supply with the LM2596
+        regulated module and adding 100 µF and 10 µF bypass capacitors at the
+        ESP32 power pins eliminated the issue.
+      </p>
+      <p>
+        <strong>Memory optimization.</strong> The ESP32's 520 KB SRAM required
+        careful JSON object sizing to avoid heap fragmentation over long uptime
+        periods. Static buffer allocation using <code class="mono">StaticJsonDocument&lt;256&gt;</code>
+        replaced dynamic allocation, reducing heap churn.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ====================== LIMITATIONS ====================== -->
+<section class="section" id="limitations">
+  <div class="section__inner">
+    <header class="section__header" data-reveal="up">
+      <div class="section__tag">// honest accounting</div>
+      <h2 class="section__title">What this system <em>does not do</em></h2>
+      <div class="section__rule"></div>
+      <p class="section__lede">
+        A project that names its own limits is easier to defend than one that
+        does not. These are stated plainly here and repeated in the interface
+        wherever they matter.
+      </p>
+    </header>
+
+    <div style="max-width:74ch">
+      <div class="limitation" data-reveal="up">
+        <div class="future-item__title">Four bins, not a city</div>
+        <p class="future-item__body">
+          This is a validated prototype on a controlled testbed. Every bin in the
+          interface declares whether its data comes from a physical device, the
+          Simulation Engine, or hardware not yet deployed. Simulated readings are
+          visibly badged and cannot pass as live telemetry.
+        </p>
+      </div>
+
+      <div class="limitation" data-reveal="up">
+        <div class="future-item__title">No GPS on the hardware</div>
+        <p class="future-item__body">
+          Bin coordinates are administrator-assigned registration metadata entered
+          from a site survey, not device-reported positions. The map, tiles and
+          geography are entirely real — only the coordinates are configured rather
+          than sensed. GPS integration is Phase-II scope.
+        </p>
+      </div>
+
+      <div class="limitation" data-reveal="up">
+        <div class="future-item__title">Straight-line routing</div>
+        <p class="future-item__body">
+          Route distances use haversine calculation between coordinates. Real road
+          distance will be higher, typically by 20–40% in an urban grid. Fuel and
+          CO₂ figures are derived from declared assumptions rather than measured,
+          and every such figure carries its formula as a tooltip.
+        </p>
+      </div>
+
+      <div class="limitation" data-reveal="up">
+        <div class="future-item__title">Statistical projection, not machine learning</div>
+        <p class="future-item__body">
+          Time-to-threshold forecasting uses least-squares linear regression over
+          recorded history. It is labelled as statistical extrapolation throughout
+          the interface. Machine-learning forecasting is Phase-II scope.
+        </p>
+      </div>
+
+      <div class="limitation" data-reveal="up">
+        <div class="future-item__title">Alert evaluation runs client-side</div>
+        <p class="future-item__body">
+          A production deployment would evaluate threshold rules in a cloud
+          function so alerts fire regardless of whether anyone has the dashboard
+          open. This project has no server component, so evaluation happens in the
+          browser.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====================== FUTURE SCOPE ====================== -->
+<section class="section" id="future" style="background:var(--surface-raised)">
+  <div class="section__inner">
+    <header class="section__header" data-reveal="up">
+      <div class="section__tag">// phase II</div>
+      <h2 class="section__title">Where this <em>goes next</em></h2>
+      <div class="section__rule"></div>
+      <p class="section__lede">
+        Directions drawn from the project report's future scope and from the gaps
+        identified in our literature survey.
+      </p>
+    </header>
+
+    <div class="split-even">
+      <div class="card card--padded-lg" data-reveal="left">
+        <h3 class="kpi-group__title">From the project report</h3>
+
+        <div class="future-item">
+          <span class="future-item__marker"></span>
+          <div>
+            <div class="future-item__title">GPS-based bin location mapping</div>
+            <p class="future-item__body">
+              Device-reported positioning, replacing administrator-assigned
+              coordinates and enabling deployment beyond a surveyed campus.
+            </p>
+          </div>
+        </div>
+
+        <div class="future-item">
+          <span class="future-item__marker"></span>
+          <div>
+            <div class="future-item__title">Machine-learning fill forecasting</div>
+            <p class="future-item__body">
+              Predictive fill-level modelling from historical data, replacing the
+              current linear projection with decision trees, regression models or
+              neural networks.
+            </p>
+          </div>
+        </div>
+
+        <div class="future-item">
+          <span class="future-item__marker"></span>
+          <div>
+            <div class="future-item__title">Solar-powered bin units</div>
+            <p class="future-item__body">
+              Off-grid sustainability, removing the battery replacement cycle that
+              limits large-scale deployment.
+            </p>
+          </div>
+        </div>
+
+        <div class="future-item">
+          <span class="future-item__marker"></span>
+          <div>
+            <div class="future-item__title">Multi-sensor fusion</div>
+            <p class="future-item__body">
+              Toxic gas and temperature detection. The database schema already
+              reserves these fields.
+            </p>
+          </div>
+        </div>
+
+        <div class="future-item">
+          <span class="future-item__marker"></span>
+          <div>
+            <div class="future-item__title">Android and iOS field application</div>
+            <p class="future-item__body">
+              A mobile client for collection personnel, with route navigation and
+              in-field collection confirmation.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="card card--padded-lg" data-reveal="right">
+        <h3 class="kpi-group__title">From the literature survey</h3>
+
+        <div class="future-item">
+          <span class="future-item__marker" style="background:var(--sb-green-500)"></span>
+          <div>
+            <div class="future-item__title">Adaptive and dynamic routing</div>
+            <p class="future-item__body">
+              Real-time traffic conditions, vehicle GPS tracking and live bin
+              status incorporated into route calculation, allowing continuous
+              rerouting rather than a single plan computed at dispatch.
+            </p>
+          </div>
+        </div>
+
+        <div class="future-item">
+          <span class="future-item__marker" style="background:var(--sb-green-500)"></span>
+          <div>
+            <div class="future-item__title">Edge computing</div>
+            <p class="future-item__body">
+              Extending local processing so devices function through network
+              interruptions. The current firmware already performs threshold
+              evaluation and filtering on-device; anomaly detection would follow.
+            </p>
+          </div>
+        </div>
+
+        <div class="future-item">
+          <span class="future-item__marker" style="background:var(--sb-green-500)"></span>
+          <div>
+            <div class="future-item__title">Event-driven communication</div>
+            <p class="future-item__body">
+              Transmitting on meaningful change rather than on a fixed interval,
+              reducing both bandwidth and power draw across a large fleet.
+            </p>
+          </div>
+        </div>
+
+        <div class="future-item">
+          <span class="future-item__marker" style="background:var(--sb-green-500)"></span>
+          <div>
+            <div class="future-item__title">Hardened IoT security</div>
+            <p class="future-item__body">
+              Device authentication, intrusion detection and secure MQTT. Access
+              control and TLS are in place; device-level attestation is not.
+            </p>
+          </div>
+        </div>
+
+        <div class="future-item">
+          <span class="future-item__marker" style="background:var(--sb-green-500)"></span>
+          <div>
+            <div class="future-item__title">Smart city interoperability</div>
+            <p class="future-item__body">
+              Integration with urban traffic monitoring and city management
+              platforms, so collection routing accounts for congestion and waste
+              generation data informs urban planning.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====================== CTA ====================== -->
+<section class="section">
+  <div class="section__inner">
+    <div class="cta" data-reveal="scale">
+      <h2 class="cta__title">See the <em>system running</em></h2>
+      <div class="hero__ctas" style="margin-top:var(--space-6); margin-bottom:0">
+        <a class="btn-hero btn-hero--primary" href="login.html">Open the console</a>
+        <a class="btn-hero btn-hero--ghost" href="index.html">Back to overview</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="site-footer__bottom">
+    <span id="footer-line"></span>
+    <span>Aligned with UN SDG 11 — Sustainable Cities and Communities</span>
+  </div>
+</footer>
+
+<script type="module">
+import { initScrollReveal } from './animations/scroll-reveal.js';
+import { PROJECT } from './config/constants.js';
+
+document.getElementById('footer-line').textContent =
+  `© ${PROJECT.academicYear} ${PROJECT.name} · Group ${PROJECT.groupNo} · ` +
+  `${PROJECT.courseCode} · ${PROJECT.institute}`;
+
+initScrollReveal();
+</script>
+</body>
+</html>

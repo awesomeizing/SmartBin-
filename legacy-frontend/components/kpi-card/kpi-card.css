@@ -1,0 +1,196 @@
+/* ==========================================================================
+   SmartBin+ — KPI Card
+   --------------------------------------------------------------------------
+   A single metric tile: label, value, unit, optional trend and note.
+
+   Design intent: dense, scannable, honest. The value dominates; everything
+   else is subordinate. Unknown values render as an em dash in muted grey,
+   never as a confident zero.
+   ========================================================================== */
+
+.kpi {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-5);
+  background: var(--surface-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  min-width: 0;
+  transition:
+    border-color var(--duration-micro) var(--ease-standard),
+    box-shadow var(--duration-micro) var(--ease-standard);
+}
+
+.kpi:hover {
+  border-color: var(--border-default);
+}
+
+/* Interactive tiles — those that navigate somewhere */
+.kpi--link { cursor: pointer; }
+.kpi--link:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-md);
+}
+
+/* --- Header row ---------------------------------------------------------- */
+.kpi__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.kpi__label {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Info affordance — hover reveals the derivation or assumption.
+   Every computed metric carries one. */
+.kpi__info {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  font-size: 9px;
+  font-weight: var(--weight-bold);
+  color: var(--text-disabled);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-full);
+  cursor: help;
+  transition: color var(--duration-micro) var(--ease-standard),
+              border-color var(--duration-micro) var(--ease-standard);
+}
+
+.kpi__info:hover {
+  color: var(--sb-blue-400);
+  border-color: var(--sb-blue-500);
+}
+
+/* --- Value --------------------------------------------------------------- */
+.kpi__value {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-extra);
+  line-height: var(--leading-none);
+  letter-spacing: var(--tracking-tighter);
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.kpi__unit {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-regular);
+  letter-spacing: var(--tracking-normal);
+  color: var(--text-tertiary);
+}
+
+/* Unknown value. Deliberately muted — "we don't know" should not compete
+   visually with a real reading. */
+.kpi__value--empty {
+  color: var(--text-disabled);
+  font-weight: var(--weight-medium);
+}
+
+/* Status tones */
+.kpi--healthy  .kpi__value { color: var(--status-healthy); }
+.kpi--warning  .kpi__value { color: var(--status-warning); }
+.kpi--critical .kpi__value { color: var(--status-critical); }
+.kpi--info     .kpi__value { color: var(--status-info); }
+.kpi--offline  .kpi__value { color: var(--status-offline); }
+
+/* Left accent rail matching the tone */
+.kpi--healthy::before,
+.kpi--warning::before,
+.kpi--critical::before,
+.kpi--info::before {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: 2px;
+  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+}
+.kpi--healthy::before  { background: var(--status-healthy); }
+.kpi--warning::before  { background: var(--status-warning); }
+.kpi--critical::before { background: var(--status-critical); }
+.kpi--info::before     { background: var(--status-info); }
+
+/* --- Footer -------------------------------------------------------------- */
+.kpi__foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  min-height: 1.2em;   /* reserve space so the grid stays even */
+}
+
+.kpi__trend {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.kpi__trend--up   { color: var(--status-critical); }  /* more waste = worse */
+.kpi__trend--down { color: var(--status-healthy); }
+.kpi__trend--flat { color: var(--text-tertiary); }
+
+/* --- Value change flash --------------------------------------------------
+   Applied briefly by the view when a live value updates, so an operator's
+   eye is drawn to what actually moved rather than having to scan the grid.
+   -------------------------------------------------------------------------- */
+.kpi--updated {
+  animation: flash-update 900ms var(--ease-standard);
+}
+
+/* --- Compact variant ----------------------------------------------------- */
+.kpi--compact {
+  padding: var(--space-3) var(--space-4);
+  gap: var(--space-1);
+}
+.kpi--compact .kpi__value { font-size: var(--text-xl); }
+.kpi--compact .kpi__foot  { display: none; }
+
+/* --- Section heading above a KPI group ----------------------------------- */
+.kpi-group__title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.kpi-group__title::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border-subtle);
+}
+
+@media (max-width: 768px) {
+  .kpi { padding: var(--space-3) var(--space-4); }
+  .kpi__value { font-size: var(--text-xl); }
+}

@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sign in · SmartBin+</title>
+<meta name="description" content="SmartBin+ operations console — authorised municipal access only.">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@400;500;600&family=Outfit:wght@700;800&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="css/tokens.css">
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/layout.css">
+<link rel="stylesheet" href="css/glass.css">
+<link rel="stylesheet" href="css/animations.css">
+<link rel="stylesheet" href="css/utilities.css">
+
+<style>
+  /* ======================================================================
+     Login page — scoped styles.
+     Split layout: brand panel left, form right. On mobile the brand panel
+     collapses to a compact header so the form stays above the fold.
+     ====================================================================== */
+
+  .auth {
+    display: grid;
+    grid-template-columns: 1.1fr 1fr;
+    min-height: 100vh;
+  }
+
+  /* --- Brand panel ---------------------------------------------------- */
+  .auth__brand {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: var(--space-12);
+    background: var(--surface-raised);
+    border-right: 1px solid var(--border-subtle);
+    overflow: hidden;
+  }
+
+  /* Ambient gradient — slow drift, decorative only */
+  .auth__glow {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse 700px 520px at 22% 34%, rgba(34, 197, 94, 0.09), transparent 68%),
+      radial-gradient(ellipse 560px 460px at 78% 72%, rgba(59, 130, 246, 0.08), transparent 68%);
+    background-size: 180% 180%;
+    animation: gradient-drift 22s var(--ease-standard) infinite;
+  }
+
+  .auth__logo {
+    position: relative;
+    font-family: var(--font-display);
+    font-size: var(--text-lg);
+    font-weight: var(--weight-extra);
+    letter-spacing: var(--tracking-tighter);
+  }
+  .auth__logo em { font-style: normal; color: var(--sb-green-500); }
+
+  .auth__pitch { position: relative; max-width: 40ch; }
+
+  .auth__headline {
+    font-family: var(--font-display);
+    font-size: clamp(2rem, 3.4vw, 3rem);
+    font-weight: var(--weight-extra);
+    line-height: var(--leading-tight);
+    letter-spacing: var(--tracking-tighter);
+    margin-bottom: var(--space-4);
+  }
+  .auth__headline em { font-style: normal; color: var(--sb-green-500); }
+
+  .auth__sub {
+    font-size: var(--text-md);
+    line-height: var(--leading-relaxed);
+    color: var(--text-secondary);
+  }
+
+  .auth__meta {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-6);
+  }
+
+  .auth__meta-item { min-width: 0; }
+  .auth__meta-value {
+    font-family: var(--font-mono);
+    font-size: var(--text-base);
+    color: var(--text-primary);
+    margin-top: var(--space-1);
+  }
+
+  /* --- Form panel ----------------------------------------------------- */
+  .auth__panel {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-12) var(--space-8);
+  }
+
+  .auth__form { width: 100%; max-width: 380px; }
+
+  .auth__title {
+    font-size: var(--text-2xl);
+    margin-bottom: var(--space-2);
+  }
+
+  .auth__hint {
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+    margin-bottom: var(--space-8);
+  }
+
+  /* --- Fields --------------------------------------------------------- */
+  .field { margin-bottom: var(--space-5); }
+
+  .field__label {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: var(--text-2xs);
+    font-weight: var(--weight-medium);
+    letter-spacing: var(--tracking-wider);
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+    margin-bottom: var(--space-2);
+  }
+
+  .field__input {
+    width: 100%;
+    padding: var(--space-3) var(--space-4);
+    font-size: var(--text-base);
+    color: var(--text-primary);
+    background: var(--surface-inset);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    transition:
+      border-color var(--duration-micro) var(--ease-standard),
+      box-shadow   var(--duration-micro) var(--ease-standard);
+  }
+
+  .field__input::placeholder { color: var(--text-disabled); }
+
+  .field__input:hover { border-color: var(--border-strong); }
+
+  .field__input:focus-visible {
+    outline: none;
+    border-color: var(--sb-blue-500);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.18);
+  }
+
+  .field__input[aria-invalid="true"] {
+    border-color: var(--status-critical);
+  }
+
+  /* Password field with reveal toggle */
+  .field__wrap { position: relative; }
+
+  .field__toggle {
+    position: absolute;
+    inset-inline-end: var(--space-2);
+    top: 50%;
+    transform: translateY(-50%);
+    padding: var(--space-2);
+    font-family: var(--font-mono);
+    font-size: var(--text-2xs);
+    letter-spacing: var(--tracking-wide);
+    color: var(--text-tertiary);
+    border-radius: var(--radius-sm);
+    transition: color var(--duration-micro) var(--ease-standard);
+  }
+  .field__toggle:hover { color: var(--text-secondary); }
+
+  /* --- Error banner --------------------------------------------------- */
+  .auth__error {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    margin-bottom: var(--space-5);
+    font-size: var(--text-sm);
+    line-height: var(--leading-snug);
+    color: var(--status-critical);
+    background: var(--status-critical-bg);
+    border: 1px solid var(--status-critical-brd);
+    border-radius: var(--radius-md);
+    animation: fade-down var(--duration-base) var(--ease-decelerate) both;
+  }
+  .auth__error[hidden] { display: none; }
+
+  /* --- Buttons -------------------------------------------------------- */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    width: 100%;
+    padding: var(--space-3) var(--space-6);
+    font-size: var(--text-base);
+    font-weight: var(--weight-semibold);
+    letter-spacing: var(--tracking-tight);
+    border-radius: var(--radius-md);
+    transition:
+      background-color var(--duration-micro) var(--ease-standard),
+      transform        var(--duration-micro) var(--ease-standard),
+      opacity          var(--duration-micro) var(--ease-standard);
+  }
+
+  .btn--primary {
+    color: #062B14;
+    background: var(--sb-green-500);
+  }
+  .btn--primary:hover:not(:disabled) { background: var(--sb-green-400); }
+  .btn--primary:active:not(:disabled) { transform: translateY(1px); }
+  .btn--primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .btn__spinner {
+    width: 15px;
+    height: 15px;
+    border: 2px solid rgba(6, 43, 20, 0.3);
+    border-top-color: #062B14;
+    border-radius: var(--radius-full);
+    animation: spin 700ms linear infinite;
+  }
+
+  .link-btn {
+    display: block;
+    width: 100%;
+    margin-top: var(--space-4);
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+    text-align: center;
+    transition: color var(--duration-micro) var(--ease-standard);
+  }
+  .link-btn:hover { color: var(--text-primary); }
+
+  /* --- Footer note ---------------------------------------------------- */
+  .auth__note {
+    margin-top: var(--space-8);
+    padding-top: var(--space-5);
+    border-top: 1px solid var(--border-subtle);
+    font-size: var(--text-xs);
+    line-height: var(--leading-normal);
+    color: var(--text-tertiary);
+  }
+
+  /* --- Responsive ----------------------------------------------------- */
+  @media (max-width: 900px) {
+    .auth { grid-template-columns: 1fr; }
+
+    .auth__brand {
+      padding: var(--space-6);
+      border-right: none;
+      border-bottom: 1px solid var(--border-subtle);
+      gap: var(--space-5);
+    }
+
+    .auth__headline { font-size: var(--text-2xl); }
+    .auth__sub, .auth__meta { display: none; }
+    .auth__panel { padding: var(--space-8) var(--space-5); }
+  }
+</style>
+</head>
+
+<body>
+<a class="skip-link" href="#login-form">Skip to sign-in form</a>
+
+<main class="auth">
+
+  <!-- ============ Brand panel ============ -->
+  <section class="auth__brand" aria-labelledby="brand-headline">
+    <div class="auth__glow" aria-hidden="true"></div>
+
+    <div class="auth__logo">Smart<em>Bin</em>+</div>
+
+    <div class="auth__pitch">
+      <p class="label-mono mb-3">Waste Operations Console</p>
+      <h1 class="auth__headline" id="brand-headline">
+        Collection driven by <em>data</em>, not by the calendar.
+      </h1>
+      <p class="auth__sub">
+        Live fill-level monitoring across deployed smart bins, with
+        threshold alerting and route optimisation for municipal collection teams.
+      </p>
+    </div>
+
+    <div class="auth__meta">
+      <div class="auth__meta-item">
+        <div class="label-mono">Project</div>
+        <div class="auth__meta-value">P21 · Group 54</div>
+      </div>
+      <div class="auth__meta-item">
+        <div class="label-mono">Course</div>
+        <div class="auth__meta-value">CSEP23605</div>
+      </div>
+      <div class="auth__meta-item">
+        <div class="label-mono">Institute</div>
+        <div class="auth__meta-value">GAT Bengaluru</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ Form panel ============ -->
+  <section class="auth__panel">
+    <form class="auth__form" id="login-form" novalidate>
+      <h2 class="auth__title">Sign in</h2>
+      <p class="auth__hint">Authorised municipal accounts only.</p>
+
+      <!-- Errors are announced to screen readers via role="alert" -->
+      <div class="auth__error" id="error-banner" role="alert" hidden>
+        <span aria-hidden="true">⚠</span>
+        <span id="error-text"></span>
+      </div>
+
+      <div class="field">
+        <label class="field__label" for="email">Email address</label>
+        <input
+          class="field__input"
+          type="email"
+          id="email"
+          name="email"
+          autocomplete="username"
+          placeholder="you@example.com"
+          required
+          aria-describedby="error-text">
+      </div>
+
+      <div class="field">
+        <label class="field__label" for="password">Password</label>
+        <div class="field__wrap">
+          <input
+            class="field__input"
+            type="password"
+            id="password"
+            name="password"
+            autocomplete="current-password"
+            placeholder="••••••••"
+            required>
+          <button
+            class="field__toggle"
+            type="button"
+            id="toggle-password"
+            aria-label="Show password"
+            aria-pressed="false">SHOW</button>
+        </div>
+      </div>
+
+      <button class="btn btn--primary" type="submit" id="submit-btn">
+        <span id="submit-label">Sign in</span>
+      </button>
+
+      <button class="link-btn" type="button" id="reset-btn">
+        Forgot your password?
+      </button>
+
+      <p class="auth__note">
+        Access is restricted by Firebase Authentication and enforced by database
+        security rules. If you do not have an account, ask your system
+        administrator to create one.
+      </p>
+    </form>
+  </section>
+
+</main>
+
+<script type="module">
+/**
+ * Login page controller.
+ * Handles submission, validation, error display and the password reset flow.
+ */
+import {
+  signIn,
+  sendPasswordReset,
+  redirectIfAuthenticated,
+} from './firebase/auth.service.js';
+import { get } from './js/core/store.js';
+import { AUTH } from './config/app.config.js';
+
+const form         = document.getElementById('login-form');
+const emailInput   = document.getElementById('email');
+const passInput    = document.getElementById('password');
+const submitBtn    = document.getElementById('submit-btn');
+const submitLabel  = document.getElementById('submit-label');
+const errorBanner  = document.getElementById('error-banner');
+const errorText    = document.getElementById('error-text');
+const toggleBtn    = document.getElementById('toggle-password');
+const resetBtn     = document.getElementById('reset-btn');
+
+/* --- Already signed in? Skip the form. --------------------------------- */
+redirectIfAuthenticated().catch((err) => {
+  // An unconfigured Firebase project surfaces its own setup screen,
+  // so only log here rather than showing a second error.
+  console.warn('[login]', err.message);
+});
+
+/* --- Error display ------------------------------------------------------ */
+function showError(message) {
+  errorText.textContent = message;
+  errorBanner.hidden = false;
+  emailInput.setAttribute('aria-invalid', 'true');
+  passInput.setAttribute('aria-invalid', 'true');
+}
+
+function clearError() {
+  errorBanner.hidden = true;
+  emailInput.removeAttribute('aria-invalid');
+  passInput.removeAttribute('aria-invalid');
+}
+
+[emailInput, passInput].forEach((input) => {
+  input.addEventListener('input', clearError);
+});
+
+/* --- Loading state ------------------------------------------------------ */
+function setLoading(loading, label = 'Signing in…') {
+  submitBtn.disabled = loading;
+  submitLabel.textContent = loading ? label : 'Sign in';
+
+  const existing = submitBtn.querySelector('.btn__spinner');
+  if (loading && !existing) {
+    submitBtn.insertAdjacentHTML('afterbegin', '<span class="btn__spinner"></span>');
+  } else if (!loading) {
+    existing?.remove();
+  }
+}
+
+/* --- Submit ------------------------------------------------------------- */
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  clearError();
+
+  const email = emailInput.value.trim();
+  const password = passInput.value;
+
+  if (!email || !password) {
+    showError('Enter both your email address and password.');
+    return;
+  }
+
+  setLoading(true);
+
+  try {
+    await signIn(email, password);
+
+    // Role resolves through the auth observer; give it a moment so the
+    // landing route matches the user's actual permissions.
+    await new Promise((r) => setTimeout(r, 120));
+
+    const role = get('auth').role ?? AUTH.DEFAULT_ROLE;
+    const next = new URLSearchParams(location.search).get('next');
+
+    location.replace(
+      next ? decodeURIComponent(next) : `dashboard.html${AUTH.LANDING_ROUTE[role]}`
+    );
+  } catch (err) {
+    showError(err.message);
+    setLoading(false);
+    passInput.value = '';
+    passInput.focus();
+  }
+});
+
+/* --- Password visibility ------------------------------------------------ */
+toggleBtn.addEventListener('click', () => {
+  const revealed = passInput.type === 'text';
+  passInput.type = revealed ? 'password' : 'text';
+  toggleBtn.textContent = revealed ? 'SHOW' : 'HIDE';
+  toggleBtn.setAttribute('aria-pressed', String(!revealed));
+  toggleBtn.setAttribute('aria-label', revealed ? 'Show password' : 'Hide password');
+});
+
+/* --- Password reset ----------------------------------------------------- */
+resetBtn.addEventListener('click', async () => {
+  clearError();
+  const email = emailInput.value.trim();
+
+  if (!email) {
+    showError('Enter your email address first, then choose “Forgot your password?”.');
+    emailInput.focus();
+    return;
+  }
+
+  resetBtn.disabled = true;
+  resetBtn.textContent = 'Sending…';
+
+  try {
+    await sendPasswordReset(email);
+    // Deliberately unconditional: revealing whether an address is registered
+    // would let anyone enumerate valid accounts.
+    resetBtn.textContent = 'Reset link sent — check your inbox';
+  } catch (err) {
+    showError(err.message);
+    resetBtn.textContent = 'Forgot your password?';
+    resetBtn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>

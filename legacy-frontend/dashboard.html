@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Operations Console · SmartBin+</title>
+<meta name="description" content="SmartBin+ real-time waste monitoring operations console.">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@400;500;600&family=Outfit:wght@700;800&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="css/tokens.css">
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/layout.css">
+<link rel="stylesheet" href="css/glass.css">
+<link rel="stylesheet" href="css/animations.css">
+<link rel="stylesheet" href="css/utilities.css">
+<link rel="stylesheet" href="components/sidebar/sidebar.css">
+<link rel="stylesheet" href="components/kpi-card/kpi-card.css">
+<link rel="stylesheet" href="components/bin-card/bin-card.css">
+<link rel="stylesheet" href="components/bin-modal/bin-modal.css">
+<link rel="stylesheet" href="components/toast/toast.css">
+</head>
+
+<body>
+<a class="skip-link" href="#view-outlet">Skip to main content</a>
+
+<div class="app-shell" id="app-shell" data-sidebar="expanded">
+
+  <!-- ==================== SIDEBAR ==================== -->
+  <aside class="app-sidebar" id="sidebar" aria-label="Main navigation">
+
+    <div class="sidebar__brand">
+      <a class="sidebar__logo" href="index.html" aria-label="SmartBin+ home">
+        <span class="sidebar__mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+          </svg>
+        </span>
+        <span class="sidebar__wordmark">Smart<em>Bin</em>+</span>
+      </a>
+    </div>
+
+    <nav class="sidebar__nav" id="sidebar-nav">
+      <!-- Populated by js/main.js from the router's route table,
+           filtered by the signed-in user's role. -->
+    </nav>
+
+    <div class="sidebar__footer">
+      <!-- Connection status. Driven entirely by the connection state machine —
+           this indicator is never hardcoded. -->
+      <div class="sidebar__status" id="connection-status" role="status" aria-live="polite">
+        <span class="pill pill--offline" id="connection-pill">
+          <span class="pill__dot"></span>
+          <span id="connection-label">CONNECTING</span>
+        </span>
+        <div class="sidebar__status-meta t-2xs c-tertiary mono" id="connection-meta"></div>
+      </div>
+
+      <div class="sidebar__user" id="sidebar-user">
+        <div class="sidebar__avatar" id="user-avatar" aria-hidden="true">—</div>
+        <div class="sidebar__user-info min-w-0">
+          <div class="sidebar__user-name truncate" id="user-name">Loading…</div>
+          <div class="sidebar__user-role label-mono" id="user-role"></div>
+        </div>
+        <button class="sidebar__signout" id="signout-btn" title="Sign out" aria-label="Sign out">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ==================== MAIN ==================== -->
+  <div class="app-main">
+
+    <header class="app-header">
+      <div class="row row--sm min-w-0">
+        <button class="icon-btn show-mobile-only" id="sidebar-toggle"
+                aria-label="Toggle navigation" aria-expanded="false" aria-controls="sidebar">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M3 6h18M3 12h18M3 18h18"/>
+          </svg>
+        </button>
+
+        <div class="min-w-0">
+          <h1 class="t-lg fw-semibold t-body truncate" id="page-title">Operations Overview</h1>
+          <p class="t-xs c-tertiary truncate hide-mobile" id="page-subtitle">
+            Live status across all deployed smart bins
+          </p>
+        </div>
+      </div>
+
+      <div class="row row--sm">
+        <!-- Live alert count. Hidden entirely when zero rather than showing
+             a reassuring "0" that draws the eye for no reason. -->
+        <button class="header-alert" id="header-alerts" hidden
+                onclick="location.hash='#/alerts'" aria-label="View active alerts">
+          <span class="pill__dot" aria-hidden="true"></span>
+          <span id="header-alert-count">0</span>
+          <span class="hide-mobile">active</span>
+        </button>
+
+        <div class="header-clock mono t-xs c-tertiary hide-mobile" id="header-clock"
+             role="status" aria-label="Current time">--:--:--</div>
+
+        <button class="icon-btn" id="theme-toggle" title="Toggle theme" aria-label="Toggle colour theme">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- ==================== PROVENANCE BANNER ====================
+         The honesty layer. Appears whenever any displayed data is not from a
+         live device, or Simulation Mode is active. Never dismissible.
+         See PHASE-1-ARCHITECTURE.md Part B. -->
+    <div class="provenance-banner" id="provenance-banner" role="status" aria-live="polite" hidden>
+      <span aria-hidden="true">◆</span>
+      <span id="provenance-text"></span>
+    </div>
+
+    <main class="app-content" id="view-outlet" tabindex="-1">
+      <!-- Views mount here via the router. -->
+    </main>
+  </div>
+</div>
+
+<!-- Toast notifications -->
+<div class="toast-container" id="toast-container" aria-live="polite" aria-atomic="false"></div>
+
+<style>
+  /* Small shell-only styles. Component styles live in components/. */
+  .icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    transition:
+      color var(--duration-micro) var(--ease-standard),
+      border-color var(--duration-micro) var(--ease-standard),
+      background-color var(--duration-micro) var(--ease-standard);
+  }
+  .icon-btn:hover {
+    color: var(--text-primary);
+    border-color: var(--border-default);
+    background: var(--surface-hover);
+  }
+
+  .header-alert {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    font-family: var(--font-mono);
+    font-size: var(--text-2xs);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    color: var(--status-critical);
+    background: var(--status-critical-bg);
+    border: 1px solid var(--status-critical-brd);
+    border-radius: var(--radius-md);
+    transition: background-color var(--duration-micro) var(--ease-standard);
+  }
+  .header-alert:hover { background: rgba(239, 68, 68, 0.18); }
+  .header-alert[hidden] { display: none; }
+  .header-alert .pill__dot { animation: pulse-dot 2s var(--ease-standard) infinite; }
+
+  .header-clock { letter-spacing: var(--tracking-wide); }
+</style>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
