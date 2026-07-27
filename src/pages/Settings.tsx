@@ -1,77 +1,268 @@
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
+import { useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { useDatabase } from '@/contexts/DatabaseContext';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Tabs } from '@/components/ui/tabs';
+import { Switch } from '@/components/ui/switch';
+import { Select } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { Avatar } from '@/components/ui/avatar';
+import { useToast } from '@/contexts/NotificationContext';
+import {
+  User, Building2, Bell, Shield, Sliders,
+  Cpu, Save
+} from 'lucide-react';
 
 export function Settings() {
+  const { currentUser } = useAuth();
+  const { config } = useDatabase();
+  const { addToast } = useToast();
+
+  const [saving, setSaving] = useState(false);
+
+  // Mock settings state
+  const [prefs, setPrefs] = useState({
+    theme: 'system',
+    language: 'en',
+    units: 'metric',
+    timezone: 'Asia/Kolkata',
+  });
+
+  const [notifications, setNotifications] = useState({
+    binFull: true,
+    sensorOffline: true,
+    batteryLow: true,
+    truckAssigned: false,
+    collectionCompleted: true,
+    emailAlerts: false,
+    pushAlerts: true,
+  });
+
+  const handleSave = () => {
+    setSaving(true);
+    setTimeout(() => {
+      setSaving(false);
+      addToast({ title: 'Settings saved', message: 'Your preferences have been updated successfully.', severity: 'info' });
+    }, 800);
+  };
+
+  const tabs = [
+    { id: 'profile', label: 'Profile', icon: <User className="w-4 h-4" /> },
+    { id: 'company', label: 'Company', icon: <Building2 className="w-4 h-4" /> },
+    { id: 'preferences', label: 'Preferences', icon: <Sliders className="w-4 h-4" /> },
+    { id: 'notifications', label: 'Notifications', icon: <Bell className="w-4 h-4" /> },
+    { id: 'hardware', label: 'Hardware', icon: <Cpu className="w-4 h-4" /> },
+    { id: 'security', label: 'Security', icon: <Shield className="w-4 h-4" /> },
+  ];
+
   return (
-    <div className="space-y-8 animate-fade-in max-w-4xl mx-auto pb-12">
-      <div className="border-b border-white/[0.05] pb-6">
-        <h1 className="text-2xl font-display font-medium tracking-tight">Platform Settings</h1>
-        <p className="text-zinc-500 text-sm mt-1">Configure your enterprise environment and hardware thresholds.</p>
+    <div className="space-y-8 animate-fade-in pb-12 max-w-4xl mx-auto">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-white/[0.05] pb-6">
+        <div>
+          <h1 className="text-2xl font-display font-medium tracking-tight">Settings</h1>
+          <p className="text-zinc-500 text-sm mt-1">Manage your account, preferences, and system configuration.</p>
+        </div>
+        <Button onClick={handleSave} disabled={saving} className="shadow-xl shadow-white/5 rounded-full px-6">
+          <Save className="w-4 h-4 mr-2" />
+          {saving ? 'Saving...' : 'Save Changes'}
+        </Button>
       </div>
 
-      <div className="grid gap-6">
-        <Card className="bg-white/[0.01] border-white/[0.05]">
-          <CardHeader className="border-b border-white/[0.05]">
-            <CardTitle className="text-sm font-medium tracking-tight">Organization Profile</CardTitle>
-            <CardDescription className="text-zinc-500 font-mono text-xs mt-1 uppercase tracking-wider">Update your municipality or company details</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6 pt-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <label className="text-xs font-mono text-zinc-500 uppercase tracking-wider">Organization Name</label>
-                <Input defaultValue="City of Metropolis" />
+      <Tabs tabs={tabs} defaultTab="profile">
+        {(activeTab) => {
+          if (activeTab === 'profile') {
+            return (
+              <div className="space-y-6">
+                <Card className="bg-white/[0.01] border-white/[0.05]">
+                  <CardHeader className="border-b border-white/[0.05]">
+                    <CardTitle className="text-base font-medium">Personal Information</CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-6 space-y-6">
+                    <div className="flex items-center gap-6">
+                      <Avatar name={currentUser?.displayName ?? 'Admin'} size="lg" className="w-20 h-20 text-2xl" />
+                      <div>
+                        <Button variant="outline" size="sm">Change Photo</Button>
+                        <p className="text-xs text-zinc-500 mt-2">JPG, GIF or PNG. Max size of 800K.</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <label className="text-xs font-mono text-zinc-500 uppercase tracking-wider">Full Name</label>
+                        <Input defaultValue={currentUser?.displayName ?? ''} className="bg-white/[0.03]" />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-mono text-zinc-500 uppercase tracking-wider">Email Address</label>
+                        <Input defaultValue={currentUser?.email ?? ''} type="email" className="bg-white/[0.03]" />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-mono text-zinc-500 uppercase tracking-wider">Phone Number</label>
+                        <Input defaultValue="+91 98765 43210" type="tel" className="bg-white/[0.03]" />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-mono text-zinc-500 uppercase tracking-wider">Role</label>
+                        <Input defaultValue="Administrator" disabled className="bg-white/[0.01] opacity-50 cursor-not-allowed" />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
-              <div className="space-y-2">
-                <label className="text-xs font-mono text-zinc-500 uppercase tracking-wider">Contact Email</label>
-                <Input defaultValue="admin@metropolis.gov" />
-              </div>
-            </div>
-            <div className="flex justify-end">
-              <Button className="rounded-full px-6 shadow-xl shadow-white/5">Save Changes</Button>
-            </div>
-          </CardContent>
-        </Card>
+            );
+          }
 
-        <Card className="bg-white/[0.01] border-white/[0.05]">
-          <CardHeader className="border-b border-white/[0.05]">
-            <CardTitle className="text-sm font-medium tracking-tight">IoT Sensor Thresholds</CardTitle>
-            <CardDescription className="text-zinc-500 font-mono text-xs mt-1 uppercase tracking-wider">Global configuration for hardware sensors</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6 pt-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <label className="text-xs font-mono text-zinc-500 uppercase tracking-wider">Critical Fill Level (%)</label>
-                <Input type="number" defaultValue="80" className="font-mono text-sm" />
+          if (activeTab === 'preferences') {
+            return (
+              <div className="space-y-6">
+                <Card className="bg-white/[0.01] border-white/[0.05]">
+                  <CardHeader className="border-b border-white/[0.05]">
+                    <CardTitle className="text-base font-medium">Display & Regional</CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-6 space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <Select
+                        label="Theme"
+                        value={prefs.theme}
+                        onChange={(v) => setPrefs(prev => ({ ...prev, theme: v }))}
+                        options={[
+                          { value: 'dark', label: 'Dark (Default)' },
+                          { value: 'light', label: 'Light' },
+                          { value: 'system', label: 'System' },
+                        ]}
+                      />
+                      <Select
+                        label="Language"
+                        value={prefs.language}
+                        onChange={(v) => setPrefs(prev => ({ ...prev, language: v }))}
+                        options={[
+                          { value: 'en', label: 'English' },
+                          { value: 'hi', label: 'Hindi' },
+                          { value: 'kn', label: 'Kannada' },
+                        ]}
+                      />
+                      <Select
+                        label="Timezone"
+                        value={prefs.timezone}
+                        onChange={(v) => setPrefs(prev => ({ ...prev, timezone: v }))}
+                        options={[
+                          { value: 'Asia/Kolkata', label: 'India Standard Time (IST)' },
+                          { value: 'UTC', label: 'UTC' },
+                        ]}
+                      />
+                      <Select
+                        label="Units"
+                        value={prefs.units}
+                        onChange={(v) => setPrefs(prev => ({ ...prev, units: v }))}
+                        options={[
+                          { value: 'metric', label: 'Metric (km, kg, °C)' },
+                          { value: 'imperial', label: 'Imperial (mi, lbs, °F)' },
+                        ]}
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
-              <div className="space-y-2">
-                <label className="text-xs font-mono text-zinc-500 uppercase tracking-wider">Low Battery Warning (%)</label>
-                <Input type="number" defaultValue="20" className="font-mono text-sm" />
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-mono text-zinc-500 uppercase tracking-wider">Telemetry Ping Rate (s)</label>
-                <Input type="number" defaultValue="60" className="font-mono text-sm" />
-              </div>
-            </div>
-            <div className="flex justify-end">
-              <Button variant="outline" className="rounded-full px-6 text-sm">Apply Global Thresholds</Button>
-            </div>
-          </CardContent>
-        </Card>
+            );
+          }
 
-        <Card className="border border-red-900/30 bg-red-900/5">
-          <CardHeader className="border-b border-red-900/20">
-            <CardTitle className="text-sm font-medium tracking-tight text-red-400">Danger Zone</CardTitle>
-            <CardDescription className="text-red-900/60 font-mono text-xs mt-1 uppercase tracking-wider">Destructive operations for your environment</CardDescription>
-          </CardHeader>
-          <CardContent className="pt-6 flex items-center justify-between">
-            <p className="text-sm text-zinc-500 max-w-sm">
-              Purging data will immediately remove all historical logs and cannot be undone.
-            </p>
-            <Button variant="destructive" className="rounded-full px-6 shadow-lg shadow-red-900/20">Purge Historical Data</Button>
-          </CardContent>
-        </Card>
-      </div>
+          if (activeTab === 'notifications') {
+            return (
+              <div className="space-y-6">
+                <Card className="bg-white/[0.01] border-white/[0.05]">
+                  <CardHeader className="border-b border-white/[0.05]">
+                    <CardTitle className="text-base font-medium">Alert Channels</CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-6 space-y-6">
+                    <Switch
+                      label="Email Notifications"
+                      description="Receive daily summaries and critical alerts via email"
+                      checked={notifications.emailAlerts}
+                      onChange={(v) => setNotifications(prev => ({ ...prev, emailAlerts: v }))}
+                    />
+                    <Switch
+                      label="Push Notifications"
+                      description="Receive real-time alerts in your browser"
+                      checked={notifications.pushAlerts}
+                      onChange={(v) => setNotifications(prev => ({ ...prev, pushAlerts: v }))}
+                    />
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-white/[0.01] border-white/[0.05]">
+                  <CardHeader className="border-b border-white/[0.05]">
+                    <CardTitle className="text-base font-medium">Event Triggers</CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-6 space-y-6">
+                    <Switch
+                      label="Bin Full Alerts"
+                      description={`Notify when any bin reaches ${config.defaultThresholdPct}% capacity`}
+                      checked={notifications.binFull}
+                      onChange={(v) => setNotifications(prev => ({ ...prev, binFull: v }))}
+                    />
+                    <Switch
+                      label="Sensor Offline"
+                      description="Notify if a hardware node stops responding"
+                      checked={notifications.sensorOffline}
+                      onChange={(v) => setNotifications(prev => ({ ...prev, sensorOffline: v }))}
+                    />
+                    <Switch
+                      label="Low Battery"
+                      description="Notify when a device battery drops below 20%"
+                      checked={notifications.batteryLow}
+                      onChange={(v) => setNotifications(prev => ({ ...prev, batteryLow: v }))}
+                    />
+                    <Switch
+                      label="Collection Completed"
+                      description="Notify when a truck finishes emptying a bin"
+                      checked={notifications.collectionCompleted}
+                      onChange={(v) => setNotifications(prev => ({ ...prev, collectionCompleted: v }))}
+                    />
+                  </CardContent>
+                </Card>
+              </div>
+            );
+          }
+
+          if (activeTab === 'hardware') {
+            return (
+              <div className="space-y-6">
+                <Card className="bg-white/[0.01] border-white/[0.05]">
+                  <CardHeader className="border-b border-white/[0.05]">
+                    <CardTitle className="text-base font-medium flex items-center justify-between">
+                      Node Configuration
+                      <Badge variant="warning" size="sm">Global Settings</Badge>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-6 space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <label className="text-xs font-mono text-zinc-500 uppercase tracking-wider">Default Fill Threshold (%)</label>
+                        <Input defaultValue={config.defaultThresholdPct} type="number" min={50} max={95} className="bg-white/[0.03]" />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-mono text-zinc-500 uppercase tracking-wider">Poll Interval (seconds)</label>
+                        <Input defaultValue={config.pollIntervalSec} type="number" min={10} max={3600} className="bg-white/[0.03]" />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            );
+          }
+
+          // Fallback for empty tabs
+          return (
+            <Card className="bg-white/[0.01] border-white/[0.05]">
+              <CardContent className="p-12 text-center">
+                <Sliders className="w-8 h-8 text-zinc-600 mx-auto mb-4" />
+                <h3 className="text-base font-medium text-white mb-2">{tabs.find(t => t.id === activeTab)?.label} configuration coming soon.</h3>
+                <p className="text-sm text-zinc-500">This section is being updated.</p>
+              </CardContent>
+            </Card>
+          );
+        }}
+      </Tabs>
     </div>
   );
 }

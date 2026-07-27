@@ -1,12 +1,22 @@
-/* eslint-disable react-refresh/only-export-components */
+
 import { createContext, useContext, useEffect, useState } from 'react';
-import { type User, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { 
+  type User, 
+  onAuthStateChanged, 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
+  updateProfile,
+  signOut 
+} from 'firebase/auth';
 import { auth, IS_DEMO_MODE } from '@/lib/firebase';
 
 interface AuthContextType {
   currentUser: User | null;
   loading: boolean;
   login: (email: string, pass: string) => Promise<void>;
+  register: (email: string, pass: string, name: string) => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
   logout: () => Promise<void>;
   isDemoMode: boolean;
 }
@@ -47,6 +57,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     await signInWithEmailAndPassword(auth, email, pass);
   };
 
+  const register = async (email: string, pass: string, name: string) => {
+    if (IS_DEMO_MODE) return;
+    const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
+    await updateProfile(userCredential.user, { displayName: name });
+    setCurrentUser(auth.currentUser);
+  };
+
+  const resetPassword = async (email: string) => {
+    if (IS_DEMO_MODE) return;
+    await sendPasswordResetEmail(auth, email);
+  };
+
   const logout = async () => {
     if (IS_DEMO_MODE) {
       setCurrentUser(null);
@@ -59,6 +81,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     currentUser,
     loading,
     login,
+    register,
+    resetPassword,
     logout,
     isDemoMode: IS_DEMO_MODE
   };

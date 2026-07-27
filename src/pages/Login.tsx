@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,7 +17,6 @@ export function Login() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isDemoMode) {
-      // In demo mode, bypass actual auth
       navigate('/dashboard');
       return;
     }
@@ -72,7 +71,7 @@ export function Login() {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-mono text-zinc-500 uppercase tracking-wider">Password</label>
-                <a href="#" className="text-xs font-mono text-zinc-400 hover:text-white transition-colors">Reset</a>
+                <Link to="/forgot-password" className="text-xs font-mono text-zinc-400 hover:text-white transition-colors">Reset</Link>
               </div>
               <Input 
                 type="password"
@@ -88,6 +87,12 @@ export function Login() {
               {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
               {isDemoMode ? "Continue (Demo Mode)" : "Sign In"}
             </Button>
+            
+            <div className="text-center mt-6">
+              <p className="text-sm text-zinc-500">
+                Don't have an account? <Link to="/register" className="text-white hover:underline transition-all">Request access</Link>
+              </p>
+            </div>
           </form>
         </CardContent>
         <CardFooter className="flex flex-col space-y-4 pt-6 pb-8 border-t border-white/[0.05]">
