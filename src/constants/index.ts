@@ -82,7 +82,7 @@ export const ENVIRONMENTAL = {
 // ── Map Defaults ───────────────────────────────────────────
 
 export const MAP_CONFIG = {
-  CENTER: { lat: 12.9606, lng: 77.4900 } as const, // GAT RR Nagar, Bengaluru
+  CENTER: { lat: 12.932, lng: 77.510 } as const, // Centered among Purple Line metro stations, Bengaluru
   ZOOM: 14,
   MIN_ZOOM: 10,
   MAX_ZOOM: 18,
@@ -94,10 +94,6 @@ export const MAP_CONFIG = {
 
 export const ZONES = [
   'Zone-A',
-  'Zone-B',
-  'Zone-C',
-  'Zone-D',
-  'Zone-E',
 ] as const;
 
 export type Zone = (typeof ZONES)[number];

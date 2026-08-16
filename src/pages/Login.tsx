@@ -4,13 +4,14 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
-import { Activity, Loader2 } from 'lucide-react';
+import { Activity, Loader2, Eye, EyeOff, LogIn } from 'lucide-react';
 
 export function Login() {
   const { login, isDemoMode } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -27,7 +28,19 @@ export function Login() {
       await login(email, password);
       navigate('/dashboard');
     } catch (err: any) {
-      setError(err.message || 'Failed to sign in');
+      // Map Firebase error codes to user-friendly messages
+      const code = err?.code || '';
+      if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
+        setError('Invalid email or password. Please check your credentials and try again.');
+      } else if (code === 'auth/user-disabled') {
+        setError('This account has been disabled. Contact your administrator.');
+      } else if (code === 'auth/too-many-requests') {
+        setError('Too many failed attempts. Please wait a moment and try again.');
+      } else if (code === 'auth/invalid-email') {
+        setError('Please enter a valid email address.');
+      } else {
+        setError(err.message || 'Failed to sign in. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -73,18 +86,27 @@ export function Login() {
                 <label className="text-xs font-mono text-zinc-500 uppercase tracking-wider">Password</label>
                 <Link to="/forgot-password" className="text-xs font-mono text-zinc-400 hover:text-white transition-colors">Reset</Link>
               </div>
-              <Input 
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="bg-white/[0.03] border-white/[0.05] text-white placeholder:text-zinc-700 font-mono tracking-widest"
-              />
+              <div className="relative">
+                <Input 
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="bg-white/[0.03] border-white/[0.05] text-white placeholder:text-zinc-700 font-mono tracking-widest pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white transition-colors"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
             </div>
             
             <Button type="submit" className="w-full mt-8 rounded-xl py-6 text-sm" disabled={loading}>
-              {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <LogIn className="w-4 h-4 mr-2" />}
               {isDemoMode ? "Continue (Demo Mode)" : "Sign In"}
             </Button>
             

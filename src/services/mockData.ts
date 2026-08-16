@@ -1,8 +1,12 @@
 // ─────────────────────────────────────────────────────────────
 // SmartBin+ Mock Data Service
-// Rich, realistic mock data for 24 bins across Bengaluru.
+// Mock data for 4 bins at Bengaluru metro stations.
 // Mirrors the Firebase schema exactly so switching to live data
 // requires zero UI changes.
+//
+// ** Updated to match the 3D IoT Smart Waste Management model **
+// Bins 1–4 are at metro stations along the Purple Line.
+// Truck 1 is the green recycling truck on the model's looped route.
 // ─────────────────────────────────────────────────────────────
 
 import type {
@@ -28,34 +32,17 @@ function pickRandom<T>(arr: readonly T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-// ── Bengaluru Coordinates ──────────────────────────────────
-// Spread around GAT Rajarajeshwari Nagar area
+// ── Bengaluru Metro Station Coordinates ────────────────────
+//   Bin 1 — RR Nagar Metro
+//   Bin 2 — Nayandahalli Metro
+//   Bin 3 — Jnana Bharathi
+//   Bin 4 — Kengeri
 
-const BIN_LOCATIONS: Array<{ label: string; zone: string; address: string; lat: number; lng: number }> = [
-  { label: 'GAT Main Gate',         zone: 'Zone-A', address: 'Dr. Vishnuvardhan Rd, RR Nagar', lat: 12.9606, lng: 77.4900 },
-  { label: 'RR Nagar Bus Stop',     zone: 'Zone-A', address: 'Mysore Road, RR Nagar',          lat: 12.9580, lng: 77.4875 },
-  { label: 'Nayandahalli Metro',    zone: 'Zone-A', address: 'Nayandahalli, RR Nagar',          lat: 12.9624, lng: 77.4932 },
-  { label: 'BEML Layout Park',      zone: 'Zone-B', address: 'BEML Layout, RR Nagar',           lat: 12.9550, lng: 77.4850 },
-  { label: 'Ideal Homes Township',  zone: 'Zone-B', address: 'Ideal Homes, RR Nagar',           lat: 12.9530, lng: 77.4910 },
-  { label: 'Pattanagere Lake',      zone: 'Zone-B', address: 'Pattanagere, RR Nagar',           lat: 12.9565, lng: 77.4960 },
-  { label: 'Kengeri Satellite',     zone: 'Zone-C', address: 'Kengeri, Bengaluru',              lat: 12.9140, lng: 77.4830 },
-  { label: 'Uttarahalli Main',      zone: 'Zone-C', address: 'Uttarahalli, Bengaluru',          lat: 12.9210, lng: 77.5520 },
-  { label: 'BSK 3rd Stage Market',  zone: 'Zone-C', address: 'BSK 3rd Stage, Bengaluru',        lat: 12.9250, lng: 77.5600 },
-  { label: 'Girinagar Circle',      zone: 'Zone-D', address: 'Girinagar, Bengaluru',            lat: 12.9350, lng: 77.5450 },
-  { label: 'Padmanabhanagar',       zone: 'Zone-D', address: 'Padmanabhanagar, Bengaluru',      lat: 12.9270, lng: 77.5560 },
-  { label: 'JP Nagar 6th Phase',    zone: 'Zone-D', address: 'JP Nagar, Bengaluru',             lat: 12.9050, lng: 77.5850 },
-  { label: 'Kumaraswamy Layout',    zone: 'Zone-E', address: 'Kumaraswamy Layout, Bengaluru',   lat: 12.9100, lng: 77.5700 },
-  { label: 'Banashankari Temple',   zone: 'Zone-E', address: 'Banashankari, Bengaluru',         lat: 12.9180, lng: 77.5730 },
-  { label: 'Kathriguppe Junction',  zone: 'Zone-A', address: 'Kathriguppe, Bengaluru',          lat: 12.9380, lng: 77.5500 },
-  { label: 'Mysore Road Flyover',   zone: 'Zone-A', address: 'Mysore Road, Bengaluru',          lat: 12.9620, lng: 77.5100 },
-  { label: 'Vijayanagar Circle',    zone: 'Zone-B', address: 'Vijayanagar, Bengaluru',          lat: 12.9700, lng: 77.5280 },
-  { label: 'Chord Road Junction',   zone: 'Zone-B', address: 'Chord Road, Bengaluru',           lat: 12.9800, lng: 77.5400 },
-  { label: 'Magadi Road Cross',     zone: 'Zone-C', address: 'Magadi Road, Bengaluru',          lat: 12.9750, lng: 77.5150 },
-  { label: 'Nagarbhavi Circle',     zone: 'Zone-C', address: 'Nagarbhavi, Bengaluru',           lat: 12.9660, lng: 77.5080 },
-  { label: 'BDA Complex',           zone: 'Zone-D', address: 'BDA Complex, Banashankari',       lat: 12.9280, lng: 77.5680 },
-  { label: 'Jaraganahalli Cross',   zone: 'Zone-D', address: 'Jaraganahalli, JP Nagar',         lat: 12.8980, lng: 77.5870 },
-  { label: 'Hulimavu Lake',         zone: 'Zone-E', address: 'Hulimavu, Bengaluru',             lat: 12.8880, lng: 77.5950 },
-  { label: 'Electronic City Gate',  zone: 'Zone-E', address: 'Electronic City, Bengaluru',      lat: 12.8450, lng: 77.6600 },
+const BIN_LOCATIONS: Array<{ label: string; zone: string; address: string; lat: number; lng: number; fixedFill?: number }> = [
+  { label: 'RR Nagar Metro',         zone: 'Zone-A', address: 'Rajarajeshwari Nagar Metro Station, Bengaluru', lat: 12.9367, lng: 77.5196, fixedFill: 40 },
+  { label: 'Nayandahalli Metro',     zone: 'Zone-A', address: 'Pantharapalya-Nayandahalli Metro Station, Bengaluru', lat: 12.9468, lng: 77.5313, fixedFill: 98 },
+  { label: 'Jnana Bharathi',        zone: 'Zone-A', address: 'Jnanabharathi Metro Station, Bengaluru', lat: 12.9356, lng: 77.5120, fixedFill: 10 },
+  { label: 'Kengeri',               zone: 'Zone-A', address: 'Kengeri Metro Station, Bengaluru',      lat: 12.9080, lng: 77.4765, fixedFill: 80 },
 ];
 
 // ── Generate Bins ──────────────────────────────────────────
@@ -63,8 +50,9 @@ const BIN_LOCATIONS: Array<{ label: string; zone: string; address: string; lat: 
 function generateBins(): Bin[] {
   return BIN_LOCATIONS.map((loc, i) => {
     const id = `BIN-${String(i + 1).padStart(3, '0')}`;
-    const fillPct = i === 0 ? randomBetween(30, 60) : randomBetween(5, 98);
-    const isDevice = i === 0; // BIN-001 is the real hardware
+    // Use fixed fill for the 3D model bins (first 4), random for the rest
+    const fillPct = loc.fixedFill !== undefined ? loc.fixedFill : randomBetween(5, 98);
+    const isDevice = i < 4; // First 4 bins are the ESP32-connected model bins
     const isOnline = Math.random() > 0.08;
     const battery = randomBetween(15, 100);
     const rssi = randomInt(-85, -30);
@@ -117,59 +105,71 @@ function generateBins(): Bin[] {
 const MOCK_DRIVERS: Driver[] = [
   { id: 'DRV-001', name: 'Rajesh Kumar',    phone: '+91 98765 43210', email: 'rajesh@smartbin.io',   licenseNumber: 'KA-01-2021-0042', status: 'on_duty' },
   { id: 'DRV-002', name: 'Suresh Babu',     phone: '+91 98765 43211', email: 'suresh@smartbin.io',   licenseNumber: 'KA-01-2020-0118', status: 'on_duty' },
-  { id: 'DRV-003', name: 'Anil Sharma',     phone: '+91 98765 43212', email: 'anil@smartbin.io',     licenseNumber: 'KA-01-2022-0067', status: 'available' },
-  { id: 'DRV-004', name: 'Manoj Reddy',     phone: '+91 98765 43213', email: 'manoj@smartbin.io',    licenseNumber: 'KA-01-2019-0203', status: 'available' },
-  { id: 'DRV-005', name: 'Prakash Gowda',   phone: '+91 98765 43214', email: 'prakash@smartbin.io',  licenseNumber: 'KA-01-2021-0155', status: 'off_duty' },
-  { id: 'DRV-006', name: 'Venkatesh M',     phone: '+91 98765 43215', email: 'venkatesh@smartbin.io', licenseNumber: 'KA-01-2023-0031', status: 'on_duty' },
 ];
 
 // ── Generate Trucks ────────────────────────────────────────
+// TRK-001 is the green recycling truck from the 3D model
 
 function generateTrucks(): Truck[] {
   return [
     {
-      id: 'TRK-001', label: 'Hauler Alpha',   plateNumber: 'KA-01-AB-1234', status: 'en_route',
-      position: { lat: 12.958, lng: 77.491 }, assignedRoute: ['BIN-001', 'BIN-002', 'BIN-003'],
+      id: 'TRK-001', label: 'City Recycler',   plateNumber: 'KA-01-AB-1234', status: 'collecting',
+      position: { lat: 12.9367, lng: 77.5196 }, assignedRoute: ['BIN-001', 'BIN-002', 'BIN-003', 'BIN-004'],
       capacityLiters: 5000, currentLoadLiters: 1800, fuelLevelPct: 72, driver: MOCK_DRIVERS[0],
-      todayCollections: 8, totalKmToday: 34.5, lastMaintenance: now - 15 * day, model: 'Tata LPT 1613', year: 2023,
+      todayCollections: 8, totalKmToday: 34.5, lastMaintenance: now - 15 * day, model: 'Tata LPT 1613 (Green)', year: 2023,
     },
     {
       id: 'TRK-002', label: 'Hauler Beta',    plateNumber: 'KA-01-CD-5678', status: 'active',
-      position: { lat: 12.925, lng: 77.556 }, assignedRoute: ['BIN-010', 'BIN-011', 'BIN-012'],
+      position: { lat: 12.9080, lng: 77.4765 }, assignedRoute: ['BIN-003', 'BIN-004'],
       capacityLiters: 8000, currentLoadLiters: 3200, fuelLevelPct: 55, driver: MOCK_DRIVERS[1],
       todayCollections: 12, totalKmToday: 48.2, lastMaintenance: now - 8 * day, model: 'Ashok Leyland Ecomet', year: 2024,
     },
-    {
-      id: 'TRK-003', label: 'Hauler Gamma',   plateNumber: 'KA-01-EF-9012', status: 'idle',
-      position: { lat: 12.960, lng: 77.490 }, assignedRoute: [],
-      capacityLiters: 5000, currentLoadLiters: 0, fuelLevelPct: 90, driver: MOCK_DRIVERS[2],
-      todayCollections: 0, totalKmToday: 0, lastMaintenance: now - 3 * day, model: 'Tata LPT 1613', year: 2022,
-    },
-    {
-      id: 'TRK-004', label: 'Hauler Delta',   plateNumber: 'KA-01-GH-3456', status: 'collecting',
-      position: { lat: 12.910, lng: 77.570 }, assignedRoute: ['BIN-013', 'BIN-014'],
-      capacityLiters: 6000, currentLoadLiters: 4100, fuelLevelPct: 42, driver: MOCK_DRIVERS[5],
-      todayCollections: 15, totalKmToday: 62.1, lastMaintenance: now - 22 * day, model: 'Mahindra Furio 12', year: 2023,
-    },
-    {
-      id: 'TRK-005', label: 'Hauler Epsilon', plateNumber: 'KA-01-IJ-7890', status: 'maintenance',
-      position: { lat: 12.960, lng: 77.490 }, assignedRoute: [],
-      capacityLiters: 5000, currentLoadLiters: 0, fuelLevelPct: 100, driver: null,
-      todayCollections: 0, totalKmToday: 0, lastMaintenance: now - 1 * day, model: 'Tata LPT 1613', year: 2021,
-    },
-    {
-      id: 'TRK-006', label: 'Hauler Zeta',    plateNumber: 'KA-01-KL-2345', status: 'en_route',
-      position: { lat: 12.935, lng: 77.545 }, assignedRoute: ['BIN-015', 'BIN-016', 'BIN-017'],
-      capacityLiters: 8000, currentLoadLiters: 2600, fuelLevelPct: 65, driver: MOCK_DRIVERS[3],
-      todayCollections: 6, totalKmToday: 28.7, lastMaintenance: now - 12 * day, model: 'Ashok Leyland Ecomet', year: 2024,
-    },
   ];
+}
+
+// ── Generate Collection Route (matching the 3D model loop) ──
+
+function generateModelRoute(): CollectionRoute[] {
+  return [{
+    id: 'RTE-MODEL-001',
+    truckId: 'TRK-001',
+    stops: [
+      { binId: 'BIN-001', binLabel: 'RR Nagar Metro',       location: { lat: 12.9367, lng: 77.5196 }, fillPct: 40, order: 1, collected: true },
+      { binId: 'BIN-002', binLabel: 'Nayandahalli Metro',   location: { lat: 12.9468, lng: 77.5313 }, fillPct: 98, order: 2, collected: false },
+      { binId: 'BIN-003', binLabel: 'Jnana Bharathi',       location: { lat: 12.9356, lng: 77.5120 }, fillPct: 10, order: 3, collected: false },
+      { binId: 'BIN-004', binLabel: 'Kengeri',              location: { lat: 12.9080, lng: 77.4765 }, fillPct: 80, order: 4, collected: false },
+    ],
+    optimizedKm: 4.2,
+    traditionalKm: 6.8,
+    savedKm: 2.6,
+    fuelSavedL: 0.74,
+    co2SavedKg: 1.98,
+    createdAt: now - 2 * hour,
+    completedAt: null,
+    status: 'in_progress',
+  }];
 }
 
 // ── Generate Alerts ────────────────────────────────────────
 
 function generateAlerts(bins: Bin[]): Alert[] {
   const alerts: Alert[] = [];
+
+  // First alert is always the BIN-002 FULL alert (matches 3D model notification)
+  alerts.push({
+    id: 'ALT-001',
+    binId: 'BIN-002',
+    binLabel: 'Nayandahalli Metro',
+    severity: 'critical',
+    type: 'bin_full',
+    message: 'Smart Bin 2 (Nayandahalli Metro) is Full – Collection Required',
+    raisedAt: now - 30 * 60 * 1000, // 30 min ago
+    acknowledgedBy: null,
+    acknowledgedAt: null,
+    resolvedAt: null,
+    state: 'active',
+  });
+
   const types: Array<{ type: Alert['type']; severity: Alert['severity']; msgTemplate: (label: string) => string }> = [
     { type: 'bin_full',            severity: 'critical', msgTemplate: (l) => `${l} has reached critical fill level (>80%)` },
     { type: 'battery_low',         severity: 'warning',  msgTemplate: (l) => `${l} battery level is below 20%` },
@@ -180,7 +180,7 @@ function generateAlerts(bins: Bin[]): Alert[] {
     { type: 'sensor_fault',        severity: 'warning',  msgTemplate: (l) => `${l} ultrasonic sensor returning invalid readings` },
   ];
 
-  for (let i = 0; i < 18; i++) {
+  for (let i = 1; i < 18; i++) {
     const bin = pickRandom(bins);
     const template = pickRandom(types);
     const isActive = i < 6;
@@ -276,6 +276,26 @@ function generateHistory(_binId: string): HistoryEntry[] {
 
 function generateTimeline(bins: Bin[]): TimelineEvent[] {
   const events: TimelineEvent[] = [];
+
+  // First event is always the BIN-002 FULL event
+  events.push({
+    id: 'EVT-000',
+    binId: 'BIN-002',
+    kind: 'THRESHOLD_REACHED',
+    detail: 'Smart Bin 2 (Nayandahalli Metro) reached critical level at 98%',
+    actor: 'system',
+    timestamp: now - 30 * 60 * 1000,
+  });
+
+  events.push({
+    id: 'EVT-001',
+    binId: 'BIN-002',
+    kind: 'TRUCK_DISPATCHED',
+    detail: 'City Recycler (TRK-001) dispatched to Nayandahalli Metro for collection',
+    actor: 'system',
+    timestamp: now - 25 * 60 * 1000,
+  });
+
   const kinds: Array<{ kind: TimelineEvent['kind']; detail: (bin: Bin) => string }> = [
     { kind: 'SENSOR_UPDATE',       detail: (b) => `Fill level updated to ${b.live.fillPct}%` },
     { kind: 'THRESHOLD_REACHED',   detail: (b) => `${b.meta.label} reached threshold (${b.live.fillPct}%)` },
@@ -286,7 +306,7 @@ function generateTimeline(bins: Bin[]): TimelineEvent[] {
     { kind: 'NOTIFICATION_SENT',  detail: (b) => `Alert notification sent for ${b.meta.label}` },
   ];
 
-  for (let i = 0; i < 50; i++) {
+  for (let i = 2; i < 50; i++) {
     const bin = pickRandom(bins);
     const template = pickRandom(kinds);
 
@@ -333,7 +353,7 @@ function generateDailyAnalytics(): DailyAnalytics[] {
 // ── Generate Zone Analytics ────────────────────────────────
 
 function generateZoneAnalytics(bins: Bin[]): ZoneAnalytics[] {
-  const zones = ['Zone-A', 'Zone-B', 'Zone-C', 'Zone-D', 'Zone-E'];
+  const zones = ['Zone-A'];
 
   return zones.map(zone => {
     const zoneBins = bins.filter(b => b.meta.zone === zone);
@@ -417,17 +437,18 @@ function createMockData() {
   const dailyAnalytics = generateDailyAnalytics();
   const zoneAnalytics = generateZoneAnalytics(bins);
   const auditLogs = generateAuditLogs();
+  const routes = generateModelRoute();
 
-  // Build a history map for the first 12 bins (keeps memory reasonable)
+  // Build a history map for all 4 bins
   const history: Record<string, HistoryEntry[]> = {};
-  bins.slice(0, 12).forEach(bin => {
+  bins.forEach(bin => {
     history[bin.id] = generateHistory(bin.id);
   });
 
   return {
     bins,
     trucks,
-    routes: [],
+    routes,
     alerts,
     notifications,
     collections,

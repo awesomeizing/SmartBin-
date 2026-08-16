@@ -12,9 +12,14 @@ import {
 } from 'recharts';
 import {
   Box, Wifi, WifiOff, AlertTriangle, BarChart3, Activity,
-  Recycle, TrendingUp, Zap
+  Recycle, TrendingUp, Zap, Bell, MapPin
 } from 'lucide-react';
 import { CHART_THEME, FILL_BANDS } from '@/constants';
+import { MapContainer, TileLayer, Marker, Polyline } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import { MAP_CONFIG } from '@/constants';
+import { getFillColor } from '@/lib/calculations';
 
 // ── Chart tooltip styling ──────────────────────────────────
 
@@ -31,8 +36,25 @@ const tooltipStyle = {
   labelStyle: { color: '#a1a1aa', fontSize: '11px', marginBottom: '4px' },
 };
 
+function createMiniMapBinIcon(fillPct: number): L.DivIcon {
+  const color = getFillColor(fillPct);
+  const size = fillPct >= 80 ? 14 : 10;
+  return L.divIcon({
+    className: 'custom-div-icon bg-transparent',
+    html: `<div style="
+      background-color: ${color};
+      width: ${size}px; height: ${size}px;
+      border-radius: 50%;
+      border: 2px solid rgba(0,0,0,0.5);
+      box-shadow: 0 0 8px ${color}60;
+    "></div>`,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+  });
+}
+
 export function Dashboard() {
-  const { kpis, alerts, timeline, dailyAnalytics, binSummaries, loading, acknowledgeAlert, resolveAlert } = useDatabase();
+  const { kpis, alerts, timeline, dailyAnalytics, binSummaries, routes, trucks, loading, acknowledgeAlert, resolveAlert } = useDatabase();
 
   if (loading) {
     return (
@@ -73,12 +95,28 @@ export function Dashboard() {
     .sort((a, b) => b.fillPct - a.fillPct)
     .slice(0, 5);
 
+  // ── 3D Model bins (first 4) for the status panel ──
+  const modelBins = binSummaries.slice(0, 4);
+  const fullBin = modelBins.find(b => b.fillPct >= 80);
+
+  // ── Route from mock data for mini-map ──
+  const activeRoute = routes.find(r => r.status === 'in_progress');
+  const activeTruck = trucks.find(t => t.id === activeRoute?.truckId);
+
+  // Build the looped route positions (bin1 → bin2 → bin3 → bin4 → back to bin1)
+  const routePositions: [number, number][] = activeRoute
+    ? [
+        ...activeRoute.stops.map(s => [s.location.lat, s.location.lng] as [number, number]),
+        [activeRoute.stops[0].location.lat, activeRoute.stops[0].location.lng] as [number, number], // close the loop
+      ]
+    : [];
+
   return (
     <div className="space-y-8 animate-fade-in pb-12 max-w-7xl mx-auto">
       {/* Page Header */}
       <div className="flex items-center justify-between border-b border-white/[0.05] pb-6">
         <div>
-          <h1 className="text-2xl font-display font-medium tracking-tight">Command Center</h1>
+          <h1 className="text-2xl font-display font-medium tracking-tight">Smart Waste Management Dashboard</h1>
           <p className="text-zinc-500 text-sm mt-1">
             Real-time status across all active deployments.
           </p>
@@ -92,6 +130,122 @@ export function Dashboard() {
           </Badge>
         </div>
       </div>
+
+      {/* ── 3D Model Status Panel (matches the laptop screen) ── */}
+      {fullBin && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {/* Bin Status Alert */}
+          <Card className="bg-white/[0.01] border-white/[0.05] lg:col-span-1">
+            <CardHeader className="border-b border-white/[0.05]">
+              <CardTitle className="text-sm font-medium tracking-tight flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-red-500" />
+                Bin Status
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-5">
+              {/* Hero alert */}
+              <div className="flex items-center gap-3 mb-5">
+                <span className="text-base text-zinc-300 font-medium">BIN 2</span>
+                <span className="px-3 py-1 text-xs font-bold uppercase tracking-wider rounded-md bg-red-500/20 text-red-400 border border-red-500/30 animate-pulse">
+                  FULL!
+                </span>
+              </div>
+
+              {/* Fill Levels list */}
+              <div className="space-y-1 mb-5">
+                <p className="text-xs font-mono text-zinc-500 uppercase tracking-wider mb-2">Fill Levels:</p>
+                {modelBins.map((bin, i) => {
+                  const statusLabel = bin.fillPct >= 80 ? 'FULL' : 'Norm';
+                  const isFullStatus = bin.fillPct >= 80;
+                  return (
+                    <div key={bin.id} className="flex items-center justify-between py-1">
+                      <span className="text-sm text-zinc-400 font-mono">
+                        {i + 1}. {bin.fillPct}%
+                      </span>
+                      <span className={`text-xs font-mono font-bold uppercase ${isFullStatus ? 'text-red-400' : 'text-emerald-400'}`}>
+                        ({statusLabel})
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Notification */}
+              <div className="pt-4 border-t border-white/[0.05]">
+                <p className="text-xs font-mono text-zinc-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                  <Bell className="w-3 h-3" />
+                  Notification:
+                </p>
+                <div className="p-3 rounded-lg bg-red-900/10 border border-red-900/20">
+                  <p className="text-sm text-red-300 font-medium">
+                    Smart Bin 2 is Full – Collection Required
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Route Map mini-map */}
+          <Card className="bg-white/[0.01] border-white/[0.05] lg:col-span-2">
+            <CardHeader className="border-b border-white/[0.05]">
+              <CardTitle className="text-sm font-medium tracking-tight flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-zinc-500" />
+                Route Map
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0 h-[320px] overflow-hidden rounded-b-2xl">
+              <MapContainer
+                center={[12.9617, 77.4910]}
+                zoom={16}
+                style={{ height: '100%', width: '100%', backgroundColor: '#000' }}
+                zoomControl={false}
+                attributionControl={false}
+              >
+                <TileLayer url={MAP_CONFIG.TILE_URL} />
+
+                {/* Route polyline (looped) */}
+                {routePositions.length > 0 && (
+                  <Polyline
+                    positions={routePositions}
+                    color="#ef4444"
+                    weight={3}
+                    opacity={0.8}
+                    dashArray="8, 6"
+                  />
+                )}
+
+                {/* Bin markers */}
+                {modelBins.map(bin => (
+                  <Marker
+                    key={bin.id}
+                    position={[bin.location.lat, bin.location.lng]}
+                    icon={createMiniMapBinIcon(bin.fillPct)}
+                  />
+                ))}
+
+                {/* Truck marker */}
+                {activeTruck && (
+                  <Marker
+                    position={[activeTruck.position.lat, activeTruck.position.lng]}
+                    icon={L.divIcon({
+                      className: 'custom-div-icon bg-transparent',
+                      html: `<div style="
+                        background-color: #22c55e;
+                        width: 16px; height: 16px;
+                        border-radius: 4px;
+                        border: 2px solid rgba(0,0,0,0.8);
+                        box-shadow: 0 0 10px rgba(34,197,94,0.6);
+                      "></div>`,
+                      iconSize: [16, 16],
+                      iconAnchor: [8, 8],
+                    })}
+                  />
+                )}
+              </MapContainer>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* KPI Row — 6 Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">

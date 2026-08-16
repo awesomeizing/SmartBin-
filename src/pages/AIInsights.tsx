@@ -60,8 +60,8 @@ export function AIInsights() {
     },
     {
       icon: Target,
-      title: 'Optimize Zone-B Routes',
-      description: 'Zone-B has 15% lower efficiency than average. Rerouting could save an estimated 8.2km per day.',
+      title: 'Optimize Zone-A Routes',
+      description: 'Zone-A has 15% lower efficiency than average. Rerouting could save an estimated 8.2km per day.',
       priority: 'medium' as const,
     },
     {

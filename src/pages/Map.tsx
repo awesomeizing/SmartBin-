@@ -44,8 +44,8 @@ function createBinIcon(fillPct: number, isOnline: boolean): L.DivIcon {
 }
 
 function createTruckIcon(status: string): L.DivIcon {
-  const color = status === 'en_route' || status === 'collecting' ? '#3b82f6' : 
-                status === 'idle' ? '#22c55e' : '#f59e0b';
+  const color = status === 'en_route' || status === 'collecting' ? '#22c55e' : 
+                status === 'idle' ? '#3b82f6' : '#f59e0b';
                 
   return L.divIcon({
     className: 'custom-div-icon bg-transparent',
@@ -160,25 +160,26 @@ export function MapView() {
               </Marker>
             ))}
 
-            {/* Render active routes */}
+            {/* Render the pre-seeded model route (looped) */}
             {!loading && routes.map(route => {
               if (route.status === 'completed') return null;
               const truck = trucks.find(t => t.id === route.truckId);
               if (!truck) return null;
 
-              const positions = [
-                [truck.position.lat, truck.position.lng] as [number, number],
-                ...route.stops.filter((s: RouteStop) => !s.collected).map((s: RouteStop) => [s.location.lat, s.location.lng] as [number, number])
+              // Build a closed-loop route: bin stops + return to first stop
+              const loopPositions: [number, number][] = [
+                ...route.stops.map((s: RouteStop) => [s.location.lat, s.location.lng] as [number, number]),
+                [route.stops[0].location.lat, route.stops[0].location.lng] as [number, number],
               ];
 
               return (
                 <Polyline 
                   key={route.id} 
-                  positions={positions} 
-                  color="#3b82f6" 
+                  positions={loopPositions} 
+                  color="#ef4444" 
                   weight={3} 
-                  opacity={0.6}
-                  dashArray="10, 10" 
+                  opacity={0.7}
+                  dashArray="10, 8" 
                 />
               );
             })}

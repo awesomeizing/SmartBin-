@@ -9,13 +9,20 @@ import {
   updateProfile,
   signOut 
 } from 'firebase/auth';
-import { auth, IS_DEMO_MODE } from '@/lib/firebase';
+import { ref as dbRef, set as dbSet } from 'firebase/database';
+import { auth, db, IS_DEMO_MODE } from '@/lib/firebase';
+
+interface UserProfileData {
+  organization?: string;
+  role?: string;
+  phone?: string;
+}
 
 interface AuthContextType {
   currentUser: User | null;
   loading: boolean;
   login: (email: string, pass: string) => Promise<void>;
-  register: (email: string, pass: string, name: string) => Promise<void>;
+  register: (email: string, pass: string, name: string, profile?: UserProfileData) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   logout: () => Promise<void>;
   isDemoMode: boolean;
@@ -57,10 +64,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     await signInWithEmailAndPassword(auth, email, pass);
   };
 
-  const register = async (email: string, pass: string, name: string) => {
+  const register = async (email: string, pass: string, name: string, profile?: UserProfileData) => {
     if (IS_DEMO_MODE) return;
     const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
     await updateProfile(userCredential.user, { displayName: name });
+
+    // Save extended profile data to Realtime Database
+    const uid = userCredential.user.uid;
+    await dbSet(dbRef(db, `users/${uid}`), {
+      uid,
+      email,
+      displayName: name,
+      organization: profile?.organization || '',
+      role: profile?.role || 'user',
+      phone: profile?.phone || '',
+      createdAt: Date.now(),
+      lastLogin: Date.now(),
+    });
+
     setCurrentUser(auth.currentUser);
   };
 
