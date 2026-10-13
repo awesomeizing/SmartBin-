@@ -12,7 +12,11 @@ export const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID || 'REPLACE_ME',
 };
 
-export const IS_DEMO_MODE = !import.meta.env.VITE_FIREBASE_API_KEY || firebaseConfig.apiKey === 'REPLACE_ME';
+export const IS_DEMO_MODE =
+  import.meta.env.VITE_SMARTBIN_DEMO_MODE === 'true' ||
+  !import.meta.env.VITE_FIREBASE_API_KEY ||
+  firebaseConfig.apiKey === 'REPLACE_ME';
+
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);

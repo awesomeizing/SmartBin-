@@ -9,8 +9,8 @@ import { Activity, Loader2, Eye, EyeOff, LogIn } from 'lucide-react';
 export function Login() {
   const { login, isDemoMode } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState(isDemoMode ? 'admin@smartbin.io' : '');
+  const [password, setPassword] = useState(isDemoMode ? '••••••••' : '');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -77,7 +77,7 @@ export function Login() {
                 placeholder="admin@municipality.gov"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                required
+                required={!isDemoMode}
                 className="bg-white/[0.03] border-white/[0.05] text-white placeholder:text-zinc-700"
               />
             </div>
@@ -92,7 +92,7 @@ export function Login() {
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  required
+                  required={!isDemoMode}
                   className="bg-white/[0.03] border-white/[0.05] text-white placeholder:text-zinc-700 font-mono tracking-widest pr-10"
                 />
                 <button

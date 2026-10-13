@@ -80,5 +80,5 @@ export function useFleetSimulator(enabled: boolean = true) {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [enabled, config.simulationMode, trucks, routes, updateBin]);
+  }, [enabled, config.simulationMode, trucks, routes, updateBin, updateRoute, updateTruck]);
 }

@@ -14,8 +14,28 @@ interface AlertsPanelProps {
 }
 
 export function AlertsPanel({ alerts, maxItems = 6, onAcknowledge, onResolve, className }: AlertsPanelProps) {
-  const activeAlerts = alerts
+  // Deduplicate active alerts per bin (maintain one active alert per bin/condition)
+  const seenBins = new Set<string>();
+  const activeAlerts = [...alerts]
     .filter(a => a.state === 'active' || a.state === 'acknowledged')
+    .sort((a, b) => {
+      // Priority hierarchy: FULL (critical) > Sensor Offline > Filling (warning) > Normal
+      const getPriority = (alert: Alert) => {
+        if (alert.severity === 'critical' || alert.message.includes('100%') || alert.message.includes('full')) return 4;
+        if (alert.type === 'sensor_offline' || alert.message.toLowerCase().includes('offline')) return 3;
+        if (alert.severity === 'warning') return 2;
+        return 1;
+      };
+      const pDiff = getPriority(b) - getPriority(a);
+      if (pDiff !== 0) return pDiff;
+      return b.raisedAt - a.raisedAt;
+    })
+    .filter(a => {
+      if (!a.binId) return true;
+      if (seenBins.has(a.binId)) return false;
+      seenBins.add(a.binId);
+      return true;
+    })
     .slice(0, maxItems);
 
   return (

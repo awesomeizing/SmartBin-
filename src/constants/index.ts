@@ -82,12 +82,13 @@ export const ENVIRONMENTAL = {
 // ── Map Defaults ───────────────────────────────────────────
 
 export const MAP_CONFIG = {
-  CENTER: { lat: 12.932, lng: 77.510 } as const, // Centered among Purple Line metro stations, Bengaluru
+  CENTER: { lat: 12.932, lng: 77.510 } as const, // Default center — update once physical bin locations are surveyed
   ZOOM: 14,
   MIN_ZOOM: 10,
   MAX_ZOOM: 18,
-  TILE_URL: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-  TILE_ATTRIBUTION: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+  // OpenStreetMap — no API key required
+  TILE_URL: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+  TILE_ATTRIBUTION: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
 } as const;
 
 // ── Zones ──────────────────────────────────────────────────

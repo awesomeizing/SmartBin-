@@ -77,10 +77,10 @@ function OnlineBadge({ online, className, ...props }: { online: boolean } & Reac
   )
 }
 
-/** Source provenance badge */
+/** Source provenance badge — clearly distinguishes LIVE IoT from DEMO DATA */
 function SourceBadge({ source, className, ...props }: { source: 'device' | 'simulated' | 'placeholder' } & React.HTMLAttributes<HTMLSpanElement>) {
   const variant = source === 'device' ? 'success' : source === 'simulated' ? 'warning' : 'default';
-  const label = source === 'device' ? 'LIVE' : source === 'simulated' ? 'SIM' : 'N/A';
+  const label = source === 'device' ? 'LIVE IoT' : source === 'simulated' ? 'DEMO DATA' : 'N/A';
   return (
     <Badge variant={variant} dot={source === 'device'} pulse={source === 'device'} className={className} {...props}>
       {label}

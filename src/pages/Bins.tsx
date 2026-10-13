@@ -8,12 +8,21 @@ import { ProgressBar } from '@/components/ui/progress';
 import { EmptyState } from '@/components/ui/empty-state';
 import { SkeletonRow } from '@/components/ui/skeleton';
 import { Modal, ModalBody } from '@/components/ui/modal';
+import { SimulationBanner } from '@/components/dashboard/SimulationBanner';
 import { formatRelativeTime, formatSignal, formatTemperature, formatHumidity } from '@/lib/formatters';
 import { Search, Plus, Trash2, Activity, Eye, MapPin, Battery, Wifi, Thermometer } from 'lucide-react';
 import type { BinSummary } from '@/types';
 
+// Map bin ID to device ID (production controller IDs)
+const BIN_DEVICE_MAP: Record<string, string> = {
+  'BIN-01': 'ESP32-SMARTBIN-01',
+  'BIN-02': 'ESP32-SMARTBIN-02',
+  'BIN-03': 'ESP32-SMARTBIN-03',
+  'BIN-04': 'ESP32-SMARTBIN-04',
+};
+
 export function Bins() {
-  const { binSummaries, loading, deleteBin } = useDatabase();
+  const { binSummaries, loading, deleteBin, isSimulationMode } = useDatabase();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedBin, setSelectedBin] = useState<BinSummary | null>(null);
@@ -23,7 +32,8 @@ export function Bins() {
       const matchesSearch = !search ||
         bin.label.toLowerCase().includes(search.toLowerCase()) ||
         bin.id.toLowerCase().includes(search.toLowerCase()) ||
-        bin.zone.toLowerCase().includes(search.toLowerCase());
+        bin.zone.toLowerCase().includes(search.toLowerCase()) ||
+        (BIN_DEVICE_MAP[bin.id] || '').toLowerCase().includes(search.toLowerCase());
       const matchesStatus = statusFilter === 'all' || bin.binStatus === statusFilter;
       return matchesSearch && matchesStatus;
     });
@@ -44,11 +54,14 @@ export function Bins() {
 
   return (
     <div className="space-y-8 animate-fade-in pb-12 max-w-7xl mx-auto">
+      {/* Demo Mode Banner */}
+      <SimulationBanner visible={isSimulationMode} />
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-white/[0.05] pb-6">
         <div>
           <h1 className="text-2xl font-display font-medium tracking-tight">Bin Fleet</h1>
-          <p className="text-zinc-500 text-sm mt-1">Configure and monitor {binSummaries.length} deployed hardware units.</p>
+          <p className="text-zinc-500 text-sm mt-1">Monitor {binSummaries.length} deployed hardware units — {binSummaries.filter(b => b.isOnline).length} online.</p>
         </div>
         <Button className="shrink-0 rounded-full px-6 shadow-xl shadow-white/5">
           <Plus className="w-4 h-4 mr-2" /> Provision Unit
@@ -60,7 +73,7 @@ export function Bins() {
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-3.5 h-4 w-4 text-zinc-500" />
           <Input
-            placeholder="Search by ID, name, or zone..."
+            placeholder="Search by ID, device, name, or zone..."
             className="pl-9 bg-white/[0.03] border-white/[0.05] h-11"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -91,54 +104,74 @@ export function Bins() {
               <table className="w-full text-sm text-left whitespace-nowrap">
                 <thead className="text-xs uppercase bg-black/20 text-zinc-500 font-mono tracking-wider">
                   <tr>
-                    <th className="px-6 py-4 font-medium border-b border-white/[0.05]">Unit</th>
+                    <th className="px-6 py-4 font-medium border-b border-white/[0.05]">Bin ID</th>
+                    <th className="px-6 py-4 font-medium border-b border-white/[0.05]">Device ID</th>
                     <th className="px-6 py-4 font-medium border-b border-white/[0.05]">Zone</th>
                     <th className="px-6 py-4 font-medium border-b border-white/[0.05]">Fill Level</th>
+                    <th className="px-6 py-4 font-medium border-b border-white/[0.05]">Distance</th>
                     <th className="px-6 py-4 font-medium border-b border-white/[0.05]">Status</th>
-                    <th className="px-6 py-4 font-medium border-b border-white/[0.05]">Battery</th>
-                    <th className="px-6 py-4 font-medium border-b border-white/[0.05]">Signal</th>
+                    <th className="px-6 py-4 font-medium border-b border-white/[0.05]">Connection</th>
                     <th className="px-6 py-4 font-medium border-b border-white/[0.05]">Source</th>
                     <th className="px-6 py-4 font-medium border-b border-white/[0.05]">Last Seen</th>
                     <th className="px-6 py-4 text-right font-medium border-b border-white/[0.05]">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/[0.03]">
-                  {filtered.map((bin) => (
-                    <tr key={bin.id} className="hover:bg-white/[0.015] transition-colors group cursor-default">
-                      <td className="px-6 py-3.5">
-                        <div>
-                          <p className="text-sm font-medium text-zinc-200">{bin.label}</p>
-                          <p className="text-[10px] font-mono text-zinc-600">{bin.id}</p>
-                        </div>
-                      </td>
-                      <td className="px-6 py-3.5 text-zinc-400 text-xs font-mono">{bin.zone}</td>
-                      <td className="px-6 py-3.5">
-                        <div className="flex items-center gap-3 w-28">
-                          <ProgressBar value={bin.fillPct} size="sm" className="flex-1" />
-                          <span className="font-mono text-zinc-400 text-xs w-8 text-right">{bin.fillPct}%</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-3.5"><StatusBadge status={bin.binStatus} /></td>
-                      <td className="px-6 py-3.5">
-                        <span className={`font-mono text-xs ${bin.batteryPct < 20 ? 'text-red-400' : 'text-zinc-400'}`}>
-                          {bin.batteryPct}%
-                        </span>
-                      </td>
-                      <td className="px-6 py-3.5 text-zinc-500 text-xs">{formatSignal(bin.rssi)}</td>
-                      <td className="px-6 py-3.5"><SourceBadge source={bin.source} /></td>
-                      <td className="px-6 py-3.5 text-zinc-600 text-xs">{formatRelativeTime(bin.lastUpdate)}</td>
-                      <td className="px-6 py-3.5 text-right">
-                        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-400 hover:text-white" onClick={() => setSelectedBin(bin)}>
-                            <Eye className="w-4 h-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-500 hover:text-red-400" onClick={() => deleteBin(bin.id)}>
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {filtered.map((bin) => {
+                    const deviceId = BIN_DEVICE_MAP[bin.id] || '—';
+                    const isOnline = bin.isOnline;
+                    return (
+                      <tr key={bin.id} className="hover:bg-white/[0.015] transition-colors group cursor-default">
+                        <td className="px-6 py-3.5">
+                          <div>
+                            <p className="text-sm font-medium text-zinc-200">{bin.label}</p>
+                            <p className="text-[10px] font-mono text-zinc-600">{bin.id}</p>
+                          </div>
+                        </td>
+                        <td className="px-6 py-3.5">
+                          <span className="text-xs font-mono text-zinc-400">{deviceId}</span>
+                        </td>
+                        <td className="px-6 py-3.5 text-zinc-400 text-xs font-mono">{bin.zone}</td>
+                        <td className="px-6 py-3.5">
+                          {isOnline ? (
+                            <div className="flex items-center gap-3 w-28">
+                              <ProgressBar value={bin.fillPct} size="sm" className="flex-1" />
+                              <span className="font-mono text-zinc-400 text-xs w-10 text-right">{bin.fillPct}%</span>
+                            </div>
+                          ) : (
+                            <span className="text-zinc-600 font-mono text-xs">--</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-3.5">
+                          {isOnline ? (
+                            <span className="font-mono text-zinc-400 text-xs">{bin.distanceCm.toFixed(1)} cm</span>
+                          ) : (
+                            <span className="text-zinc-600 font-mono text-xs">--</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-3.5">
+                          {isOnline ? <StatusBadge status={bin.binStatus} /> : <span className="text-zinc-600 text-xs font-mono">--</span>}
+                        </td>
+                        <td className="px-6 py-3.5"><OnlineBadge online={isOnline} /></td>
+                        <td className="px-6 py-3.5"><SourceBadge source={bin.source} /></td>
+                        <td className="px-6 py-3.5 text-zinc-600 text-xs">
+                          {isOnline ? formatRelativeTime(bin.lastUpdate) : (
+                            <span className="text-red-500/70">{formatRelativeTime(bin.lastUpdate)}</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-3.5 text-right">
+                          <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-400 hover:text-white" onClick={() => setSelectedBin(bin)}>
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-500 hover:text-red-400" onClick={() => deleteBin(bin.id)}>
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -152,7 +185,10 @@ export function Bins() {
           <ModalBody>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
               {[
-                { label: 'Fill Level', value: `${selectedBin.fillPct}%`, icon: Activity },
+                { label: 'Bin ID', value: selectedBin.id, icon: Activity },
+                { label: 'Device ID', value: BIN_DEVICE_MAP[selectedBin.id] || '—', icon: Wifi },
+                { label: 'Fill Level', value: selectedBin.isOnline ? `${selectedBin.fillPct}%` : '--', icon: Activity },
+                { label: 'Distance', value: selectedBin.isOnline ? `${selectedBin.distanceCm.toFixed(1)} cm` : '--', icon: Activity },
                 { label: 'Battery', value: `${selectedBin.batteryPct}%`, icon: Battery },
                 { label: 'Signal', value: formatSignal(selectedBin.rssi), icon: Wifi },
                 { label: 'Temperature', value: formatTemperature(selectedBin.temperatureC), icon: Thermometer },
@@ -173,7 +209,7 @@ export function Bins() {
             </div>
             <div className="mt-6 pt-6 border-t border-white/[0.05]">
               <div className="flex items-center gap-3">
-                <StatusBadge status={selectedBin.binStatus} />
+                {selectedBin.isOnline && <StatusBadge status={selectedBin.binStatus} />}
                 <OnlineBadge online={selectedBin.isOnline} />
                 <SourceBadge source={selectedBin.source} />
               </div>

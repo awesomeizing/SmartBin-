@@ -4,26 +4,53 @@
 // ─────────────────────────────────────────────────────────────
 
 import { ENVIRONMENTAL, FILL_BANDS } from '@/constants';
+import { EMPTY_DISTANCE_CM, FULL_DISTANCE_CM, STATUS_THRESHOLD_FILLING, STATUS_THRESHOLD_FULL } from '@/constants/hardware';
 import type { BinStatus, BinSummary, HistoryEntry } from '@/types';
 
 /**
- * Calculate fill percentage from measured distance.
- * Formula (report §3.1): fillPct = (1 − d_measured / d_max) × 100
+ * Calculate fill percentage from a raw ultrasonic distance reading.
+ *
+ * Uses the REAL sensor calibration for the physical prototype:
+ *   EMPTY_DISTANCE_CM (11 cm) → 0%
+ *   FULL_DISTANCE_CM  (3 cm)  → 100%
+ *
+ * Formula: fillPct = ((EMPTY - distance) / (EMPTY - FULL)) × 100
  * Clamped to [0, 100].
+ *
+ * This is the SINGLE authoritative implementation of the fill formula.
+ * Do NOT duplicate this formula anywhere else in the codebase.
+ *
+ * @param distanceCm Raw distance from sensor to waste surface, in cm.
+ * @returns Fill percentage 0–100, rounded to one decimal.
  */
-export function calculateFillPercent(distanceCm: number, depthCm: number): number {
-  if (depthCm <= 0) return 0;
-  const raw = (1 - distanceCm / depthCm) * 100;
+export function calculateFillPercent(distanceCm: number): number {
+  const range = EMPTY_DISTANCE_CM - FULL_DISTANCE_CM; // 8 cm
+  if (range <= 0) return 0;
+  const raw = ((EMPTY_DISTANCE_CM - distanceCm) / range) * 100;
   return Math.max(0, Math.min(100, Math.round(raw * 10) / 10));
 }
 
 /**
+ * Legacy overload kept so existing callers with two arguments still compile.
+ * The second argument (depthCm) is ignored — the real formula uses the
+ * hardware constants above.
+ * @deprecated Pass only distanceCm.
+ */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function calculateFillPercentLegacy(distanceCm: number, _depthCm: number): number {
+  return calculateFillPercent(distanceCm);
+}
+
+/**
  * Determine bin status from fill percentage.
- * Report §3.1: Empty 0–50 / Half 51–79 / Full 80–100
+ * Matches the OLED display terminology:
+ *   0–49%   → OK      (green, happy)
+ *   50–79%  → FILLING (amber, worried)
+ *   80–100% → FULL    (red, urgent)
  */
 export function getBinStatus(fillPct: number): BinStatus {
-  if (fillPct >= FILL_BANDS.CRITICAL.min) return 'Full';
-  if (fillPct >= FILL_BANDS.WARNING.min) return 'Half';
+  if (fillPct >= STATUS_THRESHOLD_FULL) return 'Full';
+  if (fillPct >= STATUS_THRESHOLD_FILLING) return 'Half';
   return 'Empty';
 }
 
@@ -146,15 +173,24 @@ export function predictTimeToFull(history: HistoryEntry[]): {
 
 /**
  * Calculate KPI statistics from a bin list.
+ *
+ * Average fill is computed only over online bins (sensors with valid readings).
+ * If all bins are offline, avgFillPct is -1 (the UI renders '--' instead of 0%).
  */
 export function calculateKPIs(bins: BinSummary[]) {
   const total = bins.length;
   const online = bins.filter(b => b.isOnline).length;
   const offline = total - online;
-  const full = bins.filter(b => b.fillPct >= FILL_BANDS.CRITICAL.min).length;
-  const warning = bins.filter(b => b.fillPct >= FILL_BANDS.WARNING.min && b.fillPct < FILL_BANDS.CRITICAL.min).length;
-  const healthy = total - full - warning;
-  const avgFill = total > 0 ? Math.round(bins.reduce((s, b) => s + b.fillPct, 0) / total) : 0;
+  const full = bins.filter(b => b.isOnline && b.fillPct >= FILL_BANDS.CRITICAL.min).length;
+  const warning = bins.filter(b => b.isOnline && b.fillPct >= FILL_BANDS.WARNING.min && b.fillPct < FILL_BANDS.CRITICAL.min).length;
+  const healthy = online - full - warning;
+
+  // Only average ONLINE bins — an offline bin has no valid fill reading.
+  const onlineBins = bins.filter(b => b.isOnline);
+  const avgFill = onlineBins.length > 0
+    ? Math.round(onlineBins.reduce((s, b) => s + b.fillPct, 0) / onlineBins.length)
+    : -1; // -1 signals "all offline" to the UI
+
   const avgBattery = total > 0 ? Math.round(bins.reduce((s, b) => s + b.batteryPct, 0) / total) : 0;
 
   return {

@@ -1,18 +1,29 @@
 // ─────────────────────────────────────────────────────────────
-// SmartBin+ Mock Data Service
-// Mock data for 4 bins at Bengaluru metro stations.
-// Mirrors the Firebase schema exactly so switching to live data
-// requires zero UI changes.
+// SmartBin+ Mock / Simulation Data Service
 //
-// ** Updated to match the 3D IoT Smart Waste Management model **
-// Bins 1–4 are at metro stations along the Purple Line.
-// Truck 1 is the green recycling truck on the model's looped route.
+// ██████████████████████████████████████████████████████████
+// ██  SIMULATION MODE ONLY — NOT REAL HARDWARE TELEMETRY  ██
+// ██  This data is used ONLY when IS_DEMO_MODE is true.   ██
+// ██  In production (Firebase configured), this file is   ██
+// ██  never used. Real telemetry comes from the ESP32.    ██
+// ██████████████████████████████████████████████████████████
+//
+// Mirrors the Firebase schema exactly so switching to live data
+// requires zero UI changes. The four bins use their real IDs,
+// display names, and the real 11cm→3cm fill formula.
 // ─────────────────────────────────────────────────────────────
 
 import type {
   Bin, BinSummary, Truck, Driver, Alert, Notification, CollectionEvent, TimelineEvent, DailyAnalytics, ZoneAnalytics,
   HistoryEntry, AppUser, AppConfig, AuditLogEntry, CollectionRoute
 } from '@/types';
+import { calculateFillPercent, getBinStatus } from '@/lib/calculations';
+import {
+  BIN_IDS,
+  BIN_DISPLAY_NAMES,
+  SENSOR_TIMEOUT_MS,
+  EMPTY_DISTANCE_CM,
+} from '@/constants/hardware';
 
 // ── Helpers ────────────────────────────────────────────────
 
@@ -20,11 +31,12 @@ const now = Date.now();
 const hour = 3600000;
 const day = 86400000;
 
-function randomBetween(min: number, max: number): number {
+/** Controlled range random — no unbounded Math.random() in production paths */
+function simRange(min: number, max: number): number {
   return Math.round((Math.random() * (max - min) + min) * 10) / 10;
 }
 
-function randomInt(min: number, max: number): number {
+function simInt(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
@@ -32,30 +44,66 @@ function pickRandom<T>(arr: readonly T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-// ── Bengaluru Metro Station Coordinates ────────────────────
-//   Bin 1 — RR Nagar Metro
-//   Bin 2 — Nayandahalli Metro
-//   Bin 3 — Jnana Bharathi
-//   Bin 4 — Kengeri
+// ── Real Bin Locations ─────────────────────────────────────
+//   Placed at provisional positions around GAT campus.
+//   These are PLACEHOLDERS — update via Settings → Bins
+//   once the physical bin positions have been surveyed.
 
-const BIN_LOCATIONS: Array<{ label: string; zone: string; address: string; lat: number; lng: number; fixedFill?: number }> = [
-  { label: 'RR Nagar Metro',         zone: 'Zone-A', address: 'Rajarajeshwari Nagar Metro Station, Bengaluru', lat: 12.9367, lng: 77.5196, fixedFill: 40 },
-  { label: 'Nayandahalli Metro',     zone: 'Zone-A', address: 'Pantharapalya-Nayandahalli Metro Station, Bengaluru', lat: 12.9468, lng: 77.5313, fixedFill: 98 },
-  { label: 'Jnana Bharathi',        zone: 'Zone-A', address: 'Jnanabharathi Metro Station, Bengaluru', lat: 12.9356, lng: 77.5120, fixedFill: 10 },
-  { label: 'Kengeri',               zone: 'Zone-A', address: 'Kengeri Metro Station, Bengaluru',      lat: 12.9080, lng: 77.4765, fixedFill: 80 },
+interface BinLocation {
+  label: string;
+  zone: string;
+  address: string;
+  lat: number;
+  lng: number;
+  /** Controlled simulation distance (cm) — within 3–11 cm range */
+  simDistanceCm: number;
+}
+
+const REAL_BIN_LOCATIONS: BinLocation[] = [
+  {
+    label: BIN_DISPLAY_NAMES['BIN-01'],
+    zone: 'Zone-A',
+    address: 'Main Entrance, Global Academy of Technology, Rajarajeshwari Nagar',
+    lat: 12.96060, lng: 77.49000,
+    simDistanceCm: 7.5, // ≈ 43.75% full
+  },
+  {
+    label: BIN_DISPLAY_NAMES['BIN-02'],
+    zone: 'Zone-A',
+    address: 'Canteen Area, Global Academy of Technology',
+    lat: 12.96145, lng: 77.49085,
+    simDistanceCm: 3.5, // ≈ 93.75% full (FULL alert)
+  },
+  {
+    label: BIN_DISPLAY_NAMES['BIN-03'],
+    zone: 'Zone-B',
+    address: 'CSE Block, Global Academy of Technology',
+    lat: 12.95975, lng: 77.49130,
+    simDistanceCm: 9.5, // ≈ 18.75% full
+  },
+  {
+    label: BIN_DISPLAY_NAMES['BIN-04'],
+    zone: 'Zone-B',
+    address: 'Hostel Block, Global Academy of Technology',
+    lat: 12.96020, lng: 77.48890,
+    simDistanceCm: 5.0, // ≈ 75% full
+  },
 ];
 
 // ── Generate Bins ──────────────────────────────────────────
+// Uses real bin IDs (BIN-01 … BIN-04) and the real fill formula.
 
 function generateBins(): Bin[] {
-  return BIN_LOCATIONS.map((loc, i) => {
-    const id = `BIN-${String(i + 1).padStart(3, '0')}`;
-    // Use fixed fill for the 3D model bins (first 4), random for the rest
-    const fillPct = loc.fixedFill !== undefined ? loc.fixedFill : randomBetween(5, 98);
-    const isDevice = i < 4; // First 4 bins are the ESP32-connected model bins
-    const isOnline = Math.random() > 0.08;
-    const battery = randomBetween(15, 100);
-    const rssi = randomInt(-85, -30);
+  return BIN_IDS.map((id, i) => {
+    const loc = REAL_BIN_LOCATIONS[i];
+    const distanceCm = loc.simDistanceCm;
+
+    // Use the SINGLE authoritative fill formula — same as hardware
+    const fillPct = calculateFillPercent(distanceCm);
+    const binStatus = getBinStatus(fillPct);
+
+    // In simulation all bins start online so the UI is fully populated
+    const lastSeen = now - simInt(0, 60) * 1000; // 0–60 seconds ago
 
     return {
       id,
@@ -65,35 +113,36 @@ function generateBins(): Bin[] {
         zone: loc.zone,
         address: loc.address,
         location: { lat: loc.lat, lng: loc.lng, source: 'manual' },
-        depthCm: 20,
+        // depthCm is kept for schema compatibility but is not used in fill calculation
+        depthCm: EMPTY_DISTANCE_CM,
         thresholdPct: 80,
-        source: isDevice ? 'device' : 'simulated',
-        installedAt: now - randomInt(30, 365) * day,
-        capacity: pickRandom([120, 240, 360]),
+        source: 'simulated' as const,
+        installedAt: now - simInt(30, 180) * day,
+        capacity: 240, // standardised 240L for the prototype
       },
       live: {
-        distanceCm: parseFloat(((1 - fillPct / 100) * 20).toFixed(1)),
+        distanceCm,
         fillPct,
-        binStatus: fillPct >= 80 ? 'Full' : fillPct >= 51 ? 'Half' : 'Empty',
+        binStatus,
         messageStatus: 'Delivered',
-        rssi,
-        batteryPct: battery,
-        uptimeSec: randomInt(3600, 864000),
-        firmware: '1.0.0',
-        timestamp: isOnline ? now - randomInt(0, 120) * 1000 : now - randomInt(600, 7200) * 1000,
+        rssi: simInt(-70, -40),
+        batteryPct: simRange(55, 100),
+        uptimeSec: simInt(3600, 432000),
+        firmware: '2.1.4',
+        timestamp: lastSeen,
       },
       health: {
-        sensorOk: Math.random() > 0.05,
-        wifiOk: isOnline,
+        sensorOk: true,
+        wifiOk: true,
         ledOk: true,
         buzzerOk: true,
-        oledOk: Math.random() > 0.03,
-        healthScore: randomInt(70, 100),
-        lastMaintenance: now - randomInt(7, 90) * day,
+        oledOk: true,
+        healthScore: simInt(85, 100),
+        lastMaintenance: now - simInt(7, 60) * day,
       },
       reserved: {
-        temperatureC: randomBetween(22, 38),
-        humidityPct: randomBetween(40, 85),
+        temperatureC: simRange(24, 35),
+        humidityPct: simRange(45, 75),
         gasPpm: null,
       },
     };
@@ -108,42 +157,47 @@ const MOCK_DRIVERS: Driver[] = [
 ];
 
 // ── Generate Trucks ────────────────────────────────────────
-// TRK-001 is the green recycling truck from the 3D model
 
 function generateTrucks(): Truck[] {
   return [
     {
-      id: 'TRK-001', label: 'City Recycler',   plateNumber: 'KA-01-AB-1234', status: 'collecting',
-      position: { lat: 12.9367, lng: 77.5196 }, assignedRoute: ['BIN-001', 'BIN-002', 'BIN-003', 'BIN-004'],
-      capacityLiters: 5000, currentLoadLiters: 1800, fuelLevelPct: 72, driver: MOCK_DRIVERS[0],
-      todayCollections: 8, totalKmToday: 34.5, lastMaintenance: now - 15 * day, model: 'Tata LPT 1613 (Green)', year: 2023,
+      id: 'TRK-001', label: 'Collection Vehicle 1', plateNumber: 'KA-01-AB-1234', status: 'collecting',
+      position: { lat: 12.96060, lng: 77.49000 },
+      assignedRoute: [...BIN_IDS],
+      capacityLiters: 5000, currentLoadLiters: 960, fuelLevelPct: 72, driver: MOCK_DRIVERS[0],
+      todayCollections: 3, totalKmToday: 12.4,
+      lastMaintenance: now - 15 * day, model: 'Tata LPT 1613 (Green)', year: 2023,
     },
     {
-      id: 'TRK-002', label: 'Hauler Beta',    plateNumber: 'KA-01-CD-5678', status: 'active',
-      position: { lat: 12.9080, lng: 77.4765 }, assignedRoute: ['BIN-003', 'BIN-004'],
-      capacityLiters: 8000, currentLoadLiters: 3200, fuelLevelPct: 55, driver: MOCK_DRIVERS[1],
-      todayCollections: 12, totalKmToday: 48.2, lastMaintenance: now - 8 * day, model: 'Ashok Leyland Ecomet', year: 2024,
+      id: 'TRK-002', label: 'Collection Vehicle 2', plateNumber: 'KA-01-CD-5678', status: 'idle',
+      position: { lat: 12.96020, lng: 77.48890 },
+      assignedRoute: [],
+      capacityLiters: 8000, currentLoadLiters: 0, fuelLevelPct: 91, driver: MOCK_DRIVERS[1],
+      todayCollections: 0, totalKmToday: 0,
+      lastMaintenance: now - 8 * day, model: 'Ashok Leyland Ecomet', year: 2024,
     },
   ];
 }
 
-// ── Generate Collection Route (matching the 3D model loop) ──
+// ── Generate Collection Route ──────────────────────────────
 
 function generateModelRoute(): CollectionRoute[] {
   return [{
-    id: 'RTE-MODEL-001',
+    id: 'RTE-001',
     truckId: 'TRK-001',
-    stops: [
-      { binId: 'BIN-001', binLabel: 'RR Nagar Metro',       location: { lat: 12.9367, lng: 77.5196 }, fillPct: 40, order: 1, collected: true },
-      { binId: 'BIN-002', binLabel: 'Nayandahalli Metro',   location: { lat: 12.9468, lng: 77.5313 }, fillPct: 98, order: 2, collected: false },
-      { binId: 'BIN-003', binLabel: 'Jnana Bharathi',       location: { lat: 12.9356, lng: 77.5120 }, fillPct: 10, order: 3, collected: false },
-      { binId: 'BIN-004', binLabel: 'Kengeri',              location: { lat: 12.9080, lng: 77.4765 }, fillPct: 80, order: 4, collected: false },
-    ],
-    optimizedKm: 4.2,
-    traditionalKm: 6.8,
-    savedKm: 2.6,
-    fuelSavedL: 0.74,
-    co2SavedKg: 1.98,
+    stops: BIN_IDS.map((id, i) => ({
+      binId: id,
+      binLabel: BIN_DISPLAY_NAMES[id],
+      location: { lat: REAL_BIN_LOCATIONS[i].lat, lng: REAL_BIN_LOCATIONS[i].lng },
+      fillPct: calculateFillPercent(REAL_BIN_LOCATIONS[i].simDistanceCm),
+      order: i + 1,
+      collected: i === 0, // Bin 1 already collected in simulation
+    })),
+    optimizedKm: 2.1,
+    traditionalKm: 3.4,
+    savedKm: 1.3,
+    fuelSavedL: 0.37,
+    co2SavedKg: 0.99,
     createdAt: now - 2 * hour,
     completedAt: null,
     status: 'in_progress',
@@ -151,55 +205,60 @@ function generateModelRoute(): CollectionRoute[] {
 }
 
 // ── Generate Alerts ────────────────────────────────────────
+// Alerts are derived from the ACTUAL simulated bin states — no random types.
 
 function generateAlerts(bins: Bin[]): Alert[] {
   const alerts: Alert[] = [];
+  let idx = 1;
 
-  // First alert is always the BIN-002 FULL alert (matches 3D model notification)
-  alerts.push({
-    id: 'ALT-001',
-    binId: 'BIN-002',
-    binLabel: 'Nayandahalli Metro',
-    severity: 'critical',
-    type: 'bin_full',
-    message: 'Smart Bin 2 (Nayandahalli Metro) is Full – Collection Required',
-    raisedAt: now - 30 * 60 * 1000, // 30 min ago
-    acknowledgedBy: null,
-    acknowledgedAt: null,
-    resolvedAt: null,
-    state: 'active',
-  });
+  for (const bin of bins) {
+    const pct = bin.live.fillPct;
 
-  const types: Array<{ type: Alert['type']; severity: Alert['severity']; msgTemplate: (label: string) => string }> = [
-    { type: 'bin_full',            severity: 'critical', msgTemplate: (l) => `${l} has reached critical fill level (>80%)` },
-    { type: 'battery_low',         severity: 'warning',  msgTemplate: (l) => `${l} battery level is below 20%` },
-    { type: 'sensor_offline',      severity: 'critical', msgTemplate: (l) => `${l} sensor has stopped responding` },
-    { type: 'collection_completed', severity: 'info',    msgTemplate: (l) => `Collection completed at ${l}` },
-    { type: 'truck_assigned',      severity: 'info',     msgTemplate: (l) => `Truck dispatched to ${l}` },
-    { type: 'overflow',            severity: 'critical', msgTemplate: (l) => `${l} is overflowing — immediate action required` },
-    { type: 'sensor_fault',        severity: 'warning',  msgTemplate: (l) => `${l} ultrasonic sensor returning invalid readings` },
-  ];
-
-  for (let i = 1; i < 18; i++) {
-    const bin = pickRandom(bins);
-    const template = pickRandom(types);
-    const isActive = i < 6;
-    const isAcknowledged = !isActive && i < 12;
-
-    alerts.push({
-      id: `ALT-${String(i + 1).padStart(3, '0')}`,
-      binId: bin.id,
-      binLabel: bin.meta.label,
-      severity: template.severity,
-      type: template.type,
-      message: template.msgTemplate(bin.meta.label),
-      raisedAt: now - randomInt(0, 48) * hour,
-      acknowledgedBy: isAcknowledged ? 'admin@smartbin.io' : null,
-      acknowledgedAt: isAcknowledged ? now - randomInt(0, 24) * hour : null,
-      resolvedAt: (!isActive && !isAcknowledged) ? now - randomInt(0, 12) * hour : null,
-      state: isActive ? 'active' : isAcknowledged ? 'acknowledged' : 'resolved',
-    });
+    if (pct >= 80) {
+      alerts.push({
+        id: `ALT-${String(idx++).padStart(3, '0')}`,
+        binId: bin.id,
+        binLabel: bin.meta.label,
+        severity: 'critical',
+        type: 'bin_full',
+        message: `${bin.meta.label} (${bin.id}) is ${pct}% full — Collection Required`,
+        raisedAt: now - 30 * 60 * 1000,
+        acknowledgedBy: null,
+        acknowledgedAt: null,
+        resolvedAt: null,
+        state: 'active',
+      });
+    } else if (pct >= 50) {
+      alerts.push({
+        id: `ALT-${String(idx++).padStart(3, '0')}`,
+        binId: bin.id,
+        binLabel: bin.meta.label,
+        severity: 'warning',
+        type: 'bin_full',
+        message: `${bin.meta.label} (${bin.id}) is filling up at ${pct}%`,
+        raisedAt: now - 2 * hour,
+        acknowledgedBy: null,
+        acknowledgedAt: null,
+        resolvedAt: null,
+        state: 'active',
+      });
+    }
   }
+
+  // One resolved historical alert for BIN-01 (collected earlier today)
+  alerts.push({
+    id: `ALT-${String(idx++).padStart(3, '0')}`,
+    binId: 'BIN-01',
+    binLabel: BIN_DISPLAY_NAMES['BIN-01'],
+    severity: 'critical',
+    type: 'collection_completed',
+    message: `${BIN_DISPLAY_NAMES['BIN-01']} was collected and reset to 0%`,
+    raisedAt: now - 5 * hour,
+    acknowledgedBy: 'admin@smartbin.io',
+    acknowledgedAt: now - 4 * hour,
+    resolvedAt: now - 4 * hour,
+    state: 'resolved',
+  });
 
   return alerts.sort((a, b) => b.raisedAt - a.raisedAt);
 }
@@ -207,63 +266,75 @@ function generateAlerts(bins: Bin[]): Alert[] {
 // ── Generate Notifications ─────────────────────────────────
 
 function generateNotifications(alerts: Alert[]): Notification[] {
-  return alerts.slice(0, 12).map((alert, i) => ({
+  return alerts.slice(0, 8).map((alert, i) => ({
     id: `NTF-${String(i + 1).padStart(3, '0')}`,
     title: alert.type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
     message: alert.message,
     type: alert.type,
     severity: alert.severity,
     timestamp: alert.raisedAt,
-    read: i >= 5,
+    read: i >= 3,
     binId: alert.binId,
     actionUrl: `/bins`,
   }));
 }
 
 // ── Generate Collection Events ─────────────────────────────
+// Historical collections — 4 bins × a few collections each
 
 function generateCollections(bins: Bin[]): CollectionEvent[] {
   const collections: CollectionEvent[] = [];
   const trucks = generateTrucks();
+  let idx = 1;
 
-  for (let i = 0; i < 35; i++) {
-    const bin = pickRandom(bins);
-    const truck = pickRandom(trucks.filter(t => t.driver !== null));
-
-    collections.push({
-      id: `COL-${String(i + 1).padStart(3, '0')}`,
-      binId: bin.id,
-      binLabel: bin.meta.label,
-      truckId: truck.id,
-      truckLabel: truck.label,
-      driverName: truck.driver?.name ?? 'Unknown',
-      collectedAt: now - randomInt(0, 168) * hour,
-      fillLevelBefore: randomInt(75, 100),
-      fillLevelAfter: randomInt(0, 5),
-      wasteKg: randomBetween(15, 85),
-      zone: bin.meta.zone,
-    });
+  for (const bin of bins) {
+    const numCollections = simInt(2, 5);
+    for (let c = 0; c < numCollections; c++) {
+      const truck = pickRandom(trucks.filter(t => t.driver !== null));
+      collections.push({
+        id: `COL-${String(idx++).padStart(3, '0')}`,
+        binId: bin.id,
+        binLabel: bin.meta.label,
+        truckId: truck.id,
+        truckLabel: truck.label,
+        driverName: truck.driver?.name ?? 'Unknown',
+        collectedAt: now - simInt(1, 120) * hour,
+        fillLevelBefore: simInt(80, 100),
+        fillLevelAfter: simInt(0, 5),
+        wasteKg: simRange(15, 55),
+        zone: bin.meta.zone,
+      });
+    }
   }
 
   return collections.sort((a, b) => b.collectedAt - a.collectedAt);
 }
 
-// ── Generate History (30 days, 24 entries/day per bin) ──────
+// ── Generate History (7 days) ──────────────────────────────
+// History fills up from 0% then resets at collection.
+// Uses the real fill formula in reverse: distance = EMPTY - (pct/100)*range.
 
-function generateHistory(_binId: string): HistoryEntry[] {
+function generateHistory(binId: string): HistoryEntry[] {
   const entries: HistoryEntry[] = [];
-  let fillPct = randomBetween(5, 30);
+  // Each bin has a unique fill characteristic (BIN-02 fills fastest, BIN-03 slowest)
+  const fillRateBase = binId.includes('02') ? 2.5 : binId.includes('04') ? 1.8 : binId.includes('03') ? 0.9 : 1.4;
+  let fillPct = simRange(5, 20);
 
-  for (let d = 29; d >= 0; d--) {
+  for (let d = 6; d >= 0; d--) {
     for (let h = 0; h < 24; h++) {
-      fillPct += randomBetween(-3, 5);
-      if (fillPct > 95) fillPct = randomBetween(0, 10); // collection happened
+      // Bin fills slowly throughout the day based on its rate
+      fillPct += simRange(0, fillRateBase * 1.5);
+      if (fillPct > 95) fillPct = simRange(0, 8); // collection reset
       if (fillPct < 0) fillPct = 0;
 
+      const clampedFill = Math.min(100, Math.max(0, Math.round(fillPct)));
+      // Reverse the real formula to get a consistent distance
+      const distanceCm = parseFloat((11 - (clampedFill / 100) * 8).toFixed(1));
+
       entries.push({
-        fillPct: Math.round(fillPct),
-        distanceCm: parseFloat(((1 - fillPct / 100) * 20).toFixed(1)),
-        binStatus: fillPct >= 80 ? 'Full' : fillPct >= 51 ? 'Half' : 'Empty',
+        fillPct: clampedFill,
+        distanceCm,
+        binStatus: getBinStatus(clampedFill),
         timestamp: now - d * day - h * hour,
       });
     }
@@ -276,74 +347,71 @@ function generateHistory(_binId: string): HistoryEntry[] {
 
 function generateTimeline(bins: Bin[]): TimelineEvent[] {
   const events: TimelineEvent[] = [];
+  let idx = 0;
 
-  // First event is always the BIN-002 FULL event
-  events.push({
-    id: 'EVT-000',
-    binId: 'BIN-002',
-    kind: 'THRESHOLD_REACHED',
-    detail: 'Smart Bin 2 (Nayandahalli Metro) reached critical level at 98%',
-    actor: 'system',
-    timestamp: now - 30 * 60 * 1000,
-  });
-
-  events.push({
-    id: 'EVT-001',
-    binId: 'BIN-002',
-    kind: 'TRUCK_DISPATCHED',
-    detail: 'City Recycler (TRK-001) dispatched to Nayandahalli Metro for collection',
-    actor: 'system',
-    timestamp: now - 25 * 60 * 1000,
-  });
-
-  const kinds: Array<{ kind: TimelineEvent['kind']; detail: (bin: Bin) => string }> = [
-    { kind: 'SENSOR_UPDATE',       detail: (b) => `Fill level updated to ${b.live.fillPct}%` },
-    { kind: 'THRESHOLD_REACHED',   detail: (b) => `${b.meta.label} reached threshold (${b.live.fillPct}%)` },
-    { kind: 'COLLECTION_COMPLETED', detail: (b) => `Collection completed at ${b.meta.label}` },
-    { kind: 'TRUCK_DISPATCHED',    detail: (b) => `Truck dispatched to ${b.meta.label}` },
-    { kind: 'DEVICE_ONLINE',      detail: (b) => `${b.meta.label} sensor came online` },
-    { kind: 'DEVICE_OFFLINE',     detail: (b) => `${b.meta.label} sensor went offline` },
-    { kind: 'NOTIFICATION_SENT',  detail: (b) => `Alert notification sent for ${b.meta.label}` },
-  ];
-
-  for (let i = 2; i < 50; i++) {
-    const bin = pickRandom(bins);
-    const template = pickRandom(kinds);
-
+  // Real events based on actual simulated state
+  for (const bin of bins) {
+    if (bin.live.fillPct >= 80) {
+      events.push({
+        id: `EVT-${String(idx++).padStart(3, '0')}`,
+        binId: bin.id,
+        kind: 'THRESHOLD_REACHED',
+        detail: `${bin.meta.label} reached critical fill level (${bin.live.fillPct}%)`,
+        actor: 'system',
+        timestamp: now - 30 * 60 * 1000,
+      });
+    }
     events.push({
-      id: `EVT-${String(i + 1).padStart(3, '0')}`,
+      id: `EVT-${String(idx++).padStart(3, '0')}`,
       binId: bin.id,
-      kind: template.kind,
-      detail: template.detail(bin),
-      actor: pickRandom(['system', 'admin@smartbin.io', 'device:BIN-001']),
-      timestamp: now - randomInt(0, 168) * hour,
+      kind: 'SENSOR_UPDATE',
+      detail: `${bin.meta.label}: ${bin.live.fillPct}% (${bin.live.distanceCm}cm)`,
+      actor: `device:${bin.id}`,
+      timestamp: now - simInt(0, 30) * 60 * 1000,
     });
   }
+
+  events.push({
+    id: `EVT-${String(idx++).padStart(3, '0')}`,
+    binId: 'BIN-01',
+    kind: 'COLLECTION_COMPLETED',
+    detail: `${BIN_DISPLAY_NAMES['BIN-01']} collected by TRK-001`,
+    actor: 'system',
+    timestamp: now - 5 * hour,
+  });
+
+  events.push({
+    id: `EVT-${String(idx++).padStart(3, '0')}`,
+    kind: 'TRUCK_DISPATCHED',
+    detail: 'Collection Vehicle 1 dispatched to Zone-A',
+    actor: 'system',
+    timestamp: now - 6 * hour,
+  });
 
   return events.sort((a, b) => b.timestamp - a.timestamp);
 }
 
-// ── Generate Daily Analytics (30 days) ─────────────────────
+// ── Generate Daily Analytics (7 days) ─────────────────────
 
 function generateDailyAnalytics(): DailyAnalytics[] {
   const analytics: DailyAnalytics[] = [];
 
-  for (let d = 29; d >= 0; d--) {
+  for (let d = 6; d >= 0; d--) {
     const date = new Date(now - d * day);
     const dateStr = date.toISOString().split('T')[0];
     const isWeekend = date.getDay() === 0 || date.getDay() === 6;
-    const baseFactor = isWeekend ? 0.7 : 1;
+    const baseFactor = isWeekend ? 0.6 : 1;
 
     analytics.push({
       date: dateStr,
-      totalCollections: Math.round(randomBetween(18, 35) * baseFactor),
-      totalWasteKg: Math.round(randomBetween(800, 1800) * baseFactor),
-      avgFillPct: randomBetween(35, 65),
-      overflowCount: randomInt(0, 4),
-      avgResponseTimeMins: randomBetween(12, 45),
-      fuelUsedL: randomBetween(25, 60),
-      co2SavedKg: randomBetween(15, 45),
-      efficiency: randomBetween(72, 96),
+      totalCollections: Math.round(simRange(2, 6) * baseFactor),
+      totalWasteKg: Math.round(simRange(80, 200) * baseFactor),
+      avgFillPct: simRange(30, 65),
+      overflowCount: simInt(0, 1),
+      avgResponseTimeMins: simRange(15, 40),
+      fuelUsedL: simRange(3, 8),
+      co2SavedKg: simRange(2, 8),
+      efficiency: simRange(75, 96),
     });
   }
 
@@ -353,7 +421,7 @@ function generateDailyAnalytics(): DailyAnalytics[] {
 // ── Generate Zone Analytics ────────────────────────────────
 
 function generateZoneAnalytics(bins: Bin[]): ZoneAnalytics[] {
-  const zones = ['Zone-A'];
+  const zones = ['Zone-A', 'Zone-B'];
 
   return zones.map(zone => {
     const zoneBins = bins.filter(b => b.meta.zone === zone);
@@ -365,48 +433,43 @@ function generateZoneAnalytics(bins: Bin[]): ZoneAnalytics[] {
       zone,
       binCount: zoneBins.length,
       avgFillPct: avgFill,
-      totalCollections: randomInt(40, 120),
-      totalWasteKg: randomBetween(2000, 8000),
-      overflowRate: randomBetween(2, 15),
-      efficiency: randomBetween(75, 95),
+      totalCollections: simInt(10, 30),
+      totalWasteKg: simRange(200, 600),
+      overflowRate: simRange(0, 5),
+      efficiency: simRange(80, 96),
     };
   });
 }
 
-// ── Generate App Config ────────────────────────────────────
+// ── App Config ─────────────────────────────────────────────
 
 const MOCK_CONFIG: AppConfig = {
   defaultThresholdPct: 80,
-  pollIntervalSec: 60,
+  pollIntervalSec: 30,
   truckKmPerL: 3.5,
   co2KgPerL: 2.68,
-  simulationMode: true,
+  simulationMode: true, // ← explicitly SIMULATION MODE
 };
 
-// ── Generate Users ─────────────────────────────────────────
+// ── Users ──────────────────────────────────────────────────
 
 const MOCK_USERS: AppUser[] = [
-  { uid: 'usr-001', email: 'admin@smartbin.io',      displayName: 'Admin User',     role: 'administrator', zone: null,     createdAt: now - 180 * day, lastLogin: now - 2 * hour },
-  { uid: 'usr-002', email: 'ops@municipality.gov',    displayName: 'Operations Head', role: 'municipality',  zone: 'Zone-A', createdAt: now - 120 * day, lastLogin: now - 5 * hour },
-  { uid: 'usr-003', email: 'field@municipality.gov',  displayName: 'Field Manager',   role: 'municipality',  zone: 'Zone-B', createdAt: now - 90 * day,  lastLogin: now - 1 * day },
-  { uid: 'usr-004', email: 'viewer@smartbin.io',      displayName: 'Read Only User',  role: 'user',          zone: null,     createdAt: now - 30 * day,  lastLogin: now - 3 * day },
-  { uid: 'usr-005', email: 'supervisor@municipality.gov', displayName: 'Zone Supervisor', role: 'municipality', zone: 'Zone-C', createdAt: now - 60 * day, lastLogin: now - 12 * hour },
+  { uid: 'usr-001', email: 'admin@smartbin.io',    displayName: 'Admin User',     role: 'administrator', zone: null,     createdAt: now - 180 * day, lastLogin: now - 2 * hour },
+  { uid: 'usr-002', email: 'ops@smartbin.io',      displayName: 'Operations Lead', role: 'municipality',  zone: 'Zone-A', createdAt: now - 90 * day,  lastLogin: now - 5 * hour },
 ];
 
-// ── Generate Audit Logs ────────────────────────────────────
+// ── Audit Logs ─────────────────────────────────────────────
 
 function generateAuditLogs(): AuditLogEntry[] {
   const actions = [
-    { action: 'LOGIN', resource: 'auth', detail: 'User logged in successfully' },
-    { action: 'UPDATE_THRESHOLD', resource: 'config', detail: 'Fill threshold updated to 85%' },
-    { action: 'ACKNOWLEDGE_ALERT', resource: 'alert', detail: 'Alert acknowledged' },
-    { action: 'DISPATCH_TRUCK', resource: 'truck', detail: 'Truck dispatched for collection' },
-    { action: 'CREATE_BIN', resource: 'bin', detail: 'New bin registered' },
-    { action: 'EXPORT_REPORT', resource: 'report', detail: 'Analytics report exported as PDF' },
-    { action: 'UPDATE_SETTINGS', resource: 'settings', detail: 'Notification preferences updated' },
+    { action: 'LOGIN',            resource: 'auth',     detail: 'User logged in successfully' },
+    { action: 'ACKNOWLEDGE_ALERT', resource: 'alert',   detail: 'Alert acknowledged' },
+    { action: 'DISPATCH_TRUCK',   resource: 'truck',    detail: 'Truck dispatched for collection' },
+    { action: 'UPDATE_SETTINGS',  resource: 'settings', detail: 'Notification preferences updated' },
+    { action: 'EXPORT_REPORT',    resource: 'report',   detail: 'Analytics report exported' },
   ];
 
-  return Array.from({ length: 30 }, (_, i) => {
+  return Array.from({ length: 15 }, (_, i) => {
     const user = pickRandom(MOCK_USERS);
     const action = pickRandom(actions);
     return {
@@ -415,16 +478,16 @@ function generateAuditLogs(): AuditLogEntry[] {
       userName: user.displayName,
       action: action.action,
       resource: action.resource,
-      resourceId: `RES-${randomInt(100, 999)}`,
+      resourceId: `RES-${simInt(100, 999)}`,
       details: action.detail,
-      timestamp: now - randomInt(0, 720) * hour,
+      timestamp: now - simInt(0, 168) * hour,
     };
   }).sort((a, b) => b.timestamp - a.timestamp);
 }
 
 // ── Main Export ────────────────────────────────────────────
 
-/** Singleton-cached mock data. Same references across the app. */
+/** Singleton-cached simulation data. Same references across the app. */
 let _cache: ReturnType<typeof createMockData> | null = null;
 
 function createMockData() {
@@ -439,7 +502,7 @@ function createMockData() {
   const auditLogs = generateAuditLogs();
   const routes = generateModelRoute();
 
-  // Build a history map for all 4 bins
+  // History for all 4 real bins
   const history: Record<string, HistoryEntry[]> = {};
   bins.forEach(bin => {
     history[bin.id] = generateHistory(bin.id);
@@ -485,8 +548,8 @@ export function getMockData(): {
 
 /** Convert a full Bin into a BinSummary for list/card views */
 export function toBinSummary(bin: Bin): BinSummary {
-  const pollInterval = MOCK_CONFIG.pollIntervalSec * 1000;
-  const isOnline = (Date.now() - bin.live.timestamp) < pollInterval * 3;
+  // Determine online based on sensor timeout (configurable)
+  const isOnline = (Date.now() - bin.live.timestamp) < SENSOR_TIMEOUT_MS;
 
   return {
     id: bin.id,
@@ -495,6 +558,7 @@ export function toBinSummary(bin: Bin): BinSummary {
     address: bin.meta.address,
     location: bin.meta.location,
     fillPct: bin.live.fillPct,
+    distanceCm: bin.live.distanceCm,
     binStatus: bin.live.binStatus,
     batteryPct: bin.live.batteryPct,
     rssi: bin.live.rssi,
@@ -508,7 +572,7 @@ export function toBinSummary(bin: Bin): BinSummary {
   };
 }
 
-/** Reset mock data (useful for testing) */
+/** Reset simulation data (for testing / dev mode) */
 export function resetMockData() {
   _cache = null;
 }

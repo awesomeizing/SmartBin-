@@ -3,6 +3,8 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { KPICard } from '@/components/dashboard/KPICard';
 import { ActivityFeed } from '@/components/dashboard/ActivityFeed';
 import { AlertsPanel } from '@/components/dashboard/AlertsPanel';
+import { BinCard } from '@/components/dashboard/BinCard';
+import { SimulationBanner } from '@/components/dashboard/SimulationBanner';
 import { SkeletonCard, SkeletonChart } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -12,7 +14,7 @@ import {
 } from 'recharts';
 import {
   Box, Wifi, WifiOff, AlertTriangle, BarChart3, Activity,
-  Recycle, TrendingUp, Zap, Bell, MapPin
+  Recycle, TrendingUp, Zap, MapPin
 } from 'lucide-react';
 import { CHART_THEME, FILL_BANDS } from '@/constants';
 import { MapContainer, TileLayer, Marker, Polyline } from 'react-leaflet';
@@ -54,7 +56,10 @@ function createMiniMapBinIcon(fillPct: number): L.DivIcon {
 }
 
 export function Dashboard() {
-  const { kpis, alerts, timeline, dailyAnalytics, binSummaries, routes, trucks, loading, acknowledgeAlert, resolveAlert } = useDatabase();
+  const {
+    kpis, alerts, timeline, dailyAnalytics, binSummaries,
+    routes, trucks, loading, acknowledgeAlert, resolveAlert, isSimulationMode,
+  } = useDatabase();
 
   if (loading) {
     return (
@@ -62,6 +67,9 @@ export function Dashboard() {
         <div className="border-b border-white/[0.05] pb-6">
           <div className="h-7 w-48 bg-white/[0.06] rounded animate-pulse" />
           <div className="h-4 w-72 bg-white/[0.06] rounded animate-pulse mt-2" />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
           {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
@@ -74,6 +82,14 @@ export function Dashboard() {
     );
   }
 
+  // ── Computed values ────────────────────────────────────────
+
+  // The 4 physical bins, sorted by ID (BIN-01 … BIN-04)
+  const fourBins = [...binSummaries].sort((a, b) => a.id.localeCompare(b.id));
+
+  // System-level buzzer/collection state
+  const anyFull = fourBins.some(b => b.isOnline && b.fillPct >= 80);
+
   // ── Chart Data ────────────────────────────────────────────
 
   const weeklyData = dailyAnalytics.slice(-7).map(d => ({
@@ -85,40 +101,45 @@ export function Dashboard() {
 
   // Bin distribution for pie chart
   const distributionData = [
-    { name: 'Healthy', value: kpis.healthyBins, color: FILL_BANDS.HEALTHY.color },
-    { name: 'Warning', value: kpis.warningBins, color: FILL_BANDS.WARNING.color },
-    { name: 'Critical', value: kpis.fullBins, color: FILL_BANDS.CRITICAL.color },
+    { name: 'OK',      value: kpis.healthyBins,  color: FILL_BANDS.HEALTHY.color },
+    { name: 'Filling', value: kpis.warningBins,  color: FILL_BANDS.WARNING.color },
+    { name: 'Full',    value: kpis.fullBins,      color: FILL_BANDS.CRITICAL.color },
   ].filter(d => d.value > 0);
 
-  // Top 5 bins by fill level
+  // Top bins by fill level (online only, for the recommendations panel)
   const topBins = [...binSummaries]
+    .filter(b => b.isOnline)
     .sort((a, b) => b.fillPct - a.fillPct)
-    .slice(0, 5);
+    .slice(0, 4);
 
-  // ── 3D Model bins (first 4) for the status panel ──
-  const modelBins = binSummaries.slice(0, 4);
-  const fullBin = modelBins.find(b => b.fillPct >= 80);
-
-  // ── Route from mock data for mini-map ──
+  // Route & mini-map
   const activeRoute = routes.find(r => r.status === 'in_progress');
   const activeTruck = trucks.find(t => t.id === activeRoute?.truckId);
-
-  // Build the looped route positions (bin1 → bin2 → bin3 → bin4 → back to bin1)
   const routePositions: [number, number][] = activeRoute
     ? [
         ...activeRoute.stops.map(s => [s.location.lat, s.location.lng] as [number, number]),
-        [activeRoute.stops[0].location.lat, activeRoute.stops[0].location.lng] as [number, number], // close the loop
+        [activeRoute.stops[0].location.lat, activeRoute.stops[0].location.lng] as [number, number],
       ]
     : [];
 
+  // Average fill label — '--' when all bins are offline
+  const avgFillLabel = kpis.avgFillPct < 0 ? '--' : `${kpis.avgFillPct}%`;
+
   return (
     <div className="space-y-8 animate-fade-in pb-12 max-w-7xl mx-auto">
+      {/* Simulation Mode Banner */}
+      <SimulationBanner visible={isSimulationMode} />
+
       {/* Page Header */}
       <div className="flex items-center justify-between border-b border-white/[0.05] pb-6">
         <div>
-          <h1 className="text-2xl font-display font-medium tracking-tight">Smart Waste Management Dashboard</h1>
+          <h1 className="text-2xl font-display font-medium tracking-tight">SmartBin Dashboard</h1>
           <p className="text-zinc-500 text-sm mt-1">
-            Real-time status across all active deployments.
+            Real-time status of{' '}
+            <span className="text-white font-mono">4</span> physical bins.
+            {anyFull && (
+              <span className="ml-2 text-red-400 font-medium animate-pulse">⚠ Collection Required</span>
+            )}
           </p>
         </div>
         <div className="hidden md:flex items-center gap-3">
@@ -126,134 +147,32 @@ export function Dashboard() {
             {kpis.onlineBins} Online
           </Badge>
           <Badge variant="default" size="md">
-            {kpis.totalBins} Total Bins
+            {kpis.totalBins} Bins
           </Badge>
         </div>
       </div>
 
-      {/* ── 3D Model Status Panel (matches the laptop screen) ── */}
-      {fullBin && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {/* Bin Status Alert */}
-          <Card className="bg-white/[0.01] border-white/[0.05] lg:col-span-1">
-            <CardHeader className="border-b border-white/[0.05]">
-              <CardTitle className="text-sm font-medium tracking-tight flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-red-500" />
-                Bin Status
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-5">
-              {/* Hero alert */}
-              <div className="flex items-center gap-3 mb-5">
-                <span className="text-base text-zinc-300 font-medium">BIN 2</span>
-                <span className="px-3 py-1 text-xs font-bold uppercase tracking-wider rounded-md bg-red-500/20 text-red-400 border border-red-500/30 animate-pulse">
-                  FULL!
-                </span>
-              </div>
-
-              {/* Fill Levels list */}
-              <div className="space-y-1 mb-5">
-                <p className="text-xs font-mono text-zinc-500 uppercase tracking-wider mb-2">Fill Levels:</p>
-                {modelBins.map((bin, i) => {
-                  const statusLabel = bin.fillPct >= 80 ? 'FULL' : 'Norm';
-                  const isFullStatus = bin.fillPct >= 80;
-                  return (
-                    <div key={bin.id} className="flex items-center justify-between py-1">
-                      <span className="text-sm text-zinc-400 font-mono">
-                        {i + 1}. {bin.fillPct}%
-                      </span>
-                      <span className={`text-xs font-mono font-bold uppercase ${isFullStatus ? 'text-red-400' : 'text-emerald-400'}`}>
-                        ({statusLabel})
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Notification */}
-              <div className="pt-4 border-t border-white/[0.05]">
-                <p className="text-xs font-mono text-zinc-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                  <Bell className="w-3 h-3" />
-                  Notification:
-                </p>
-                <div className="p-3 rounded-lg bg-red-900/10 border border-red-900/20">
-                  <p className="text-sm text-red-300 font-medium">
-                    Smart Bin 2 is Full – Collection Required
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Route Map mini-map */}
-          <Card className="bg-white/[0.01] border-white/[0.05] lg:col-span-2">
-            <CardHeader className="border-b border-white/[0.05]">
-              <CardTitle className="text-sm font-medium tracking-tight flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-zinc-500" />
-                Route Map
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-0 h-[320px] overflow-hidden rounded-b-2xl">
-              <MapContainer
-                center={[12.9617, 77.4910]}
-                zoom={16}
-                style={{ height: '100%', width: '100%', backgroundColor: '#000' }}
-                zoomControl={false}
-                attributionControl={false}
-              >
-                <TileLayer url={MAP_CONFIG.TILE_URL} />
-
-                {/* Route polyline (looped) */}
-                {routePositions.length > 0 && (
-                  <Polyline
-                    positions={routePositions}
-                    color="#ef4444"
-                    weight={3}
-                    opacity={0.8}
-                    dashArray="8, 6"
-                  />
-                )}
-
-                {/* Bin markers */}
-                {modelBins.map(bin => (
-                  <Marker
-                    key={bin.id}
-                    position={[bin.location.lat, bin.location.lng]}
-                    icon={createMiniMapBinIcon(bin.fillPct)}
-                  />
-                ))}
-
-                {/* Truck marker */}
-                {activeTruck && (
-                  <Marker
-                    position={[activeTruck.position.lat, activeTruck.position.lng]}
-                    icon={L.divIcon({
-                      className: 'custom-div-icon bg-transparent',
-                      html: `<div style="
-                        background-color: #22c55e;
-                        width: 16px; height: 16px;
-                        border-radius: 4px;
-                        border: 2px solid rgba(0,0,0,0.8);
-                        box-shadow: 0 0 10px rgba(34,197,94,0.6);
-                      "></div>`,
-                      iconSize: [16, 16],
-                      iconAnchor: [8, 8],
-                    })}
-                  />
-                )}
-              </MapContainer>
-            </CardContent>
-          </Card>
+      {/* ── 4-Bin Card Grid ────────────────────────────────────── */}
+      <div>
+        <h2 className="text-xs font-mono text-zinc-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+          <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          Live Bin Status
+        </h2>
+        {/* Desktop: 4 columns | Tablet: 2×2 | Mobile: 1×4 */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          {fourBins.map(bin => (
+            <BinCard key={bin.id} bin={bin} linkable />
+          ))}
         </div>
-      )}
+      </div>
 
-      {/* KPI Row — 6 Cards */}
+      {/* ── KPI Row — 6 Cards ────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         <KPICard
           title="Total Bins"
           value={kpis.totalBins}
           icon={<Box className="w-4 h-4" />}
-          trend={{ value: '+2 this week', direction: 'up', isGood: true }}
+          trend={{ value: '4 physical units', direction: 'neutral' }}
           color="#3b82f6"
           delay={0}
         />
@@ -269,16 +188,16 @@ export function Dashboard() {
           title="Offline"
           value={kpis.offlineBins}
           icon={<WifiOff className="w-4 h-4" />}
-          trend={{ value: kpis.offlineBins > 0 ? 'Attention' : 'All clear', direction: kpis.offlineBins > 0 ? 'up' : 'neutral', isGood: kpis.offlineBins === 0 }}
+          trend={{ value: kpis.offlineBins > 0 ? 'Check sensors' : 'All clear', direction: kpis.offlineBins > 0 ? 'up' : 'neutral', isGood: kpis.offlineBins === 0 }}
           color={kpis.offlineBins > 0 ? '#ef4444' : '#22c55e'}
           delay={160}
         />
         <KPICard
-          title="Critical"
+          title="Full"
           value={kpis.fullBins}
           icon={<AlertTriangle className="w-4 h-4" />}
-          trend={{ value: kpis.fullBins > 0 ? 'Action Required' : 'Healthy', direction: kpis.fullBins > 0 ? 'up' : 'neutral', isGood: kpis.fullBins === 0 }}
-          color={kpis.fullBins > 0 ? '#f59e0b' : '#22c55e'}
+          trend={{ value: kpis.fullBins > 0 ? 'Collection needed' : 'Healthy', direction: kpis.fullBins > 0 ? 'up' : 'neutral', isGood: kpis.fullBins === 0 }}
+          color={kpis.fullBins > 0 ? '#ef4444' : '#22c55e'}
           delay={240}
         />
         <KPICard
@@ -291,15 +210,15 @@ export function Dashboard() {
         />
         <KPICard
           title="Avg Fill"
-          value={`${kpis.avgFillPct}%`}
+          value={avgFillLabel}
           icon={<BarChart3 className="w-4 h-4" />}
-          trend={{ value: 'Across all bins', direction: 'neutral' }}
+          trend={{ value: kpis.avgFillPct < 0 ? 'All bins offline' : 'Online bins only', direction: 'neutral' }}
           color="#f59e0b"
           delay={400}
         />
       </div>
 
-      {/* Charts Row */}
+      {/* ── Charts Row ───────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Weekly Waste Area Chart */}
         <Card className="bg-white/[0.01] border-white/[0.05]">
@@ -350,7 +269,7 @@ export function Dashboard() {
         </Card>
       </div>
 
-      {/* Second Charts Row */}
+      {/* ── Second Charts Row ────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Bin Status Distribution Pie */}
         <Card className="bg-white/[0.01] border-white/[0.05]">
@@ -407,17 +326,17 @@ export function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* Smart Recommendations */}
+        {/* Top Bins by Fill Level */}
         <Card className="bg-white/[0.01] border-white/[0.05]">
           <CardHeader className="border-b border-white/[0.05] flex flex-row items-center justify-between">
             <CardTitle className="text-sm font-medium tracking-tight flex items-center gap-2">
-              <Zap className="w-4 h-4 text-amber-500" />
-              Smart Recommendations
+              <AlertTriangle className="w-4 h-4 text-amber-500" />
+              Bins by Fill Level
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             <div className="divide-y divide-white/[0.03]">
-              {topBins.map((bin) => (
+              {topBins.length > 0 ? topBins.map((bin) => (
                 <div key={bin.id} className="flex items-center justify-between px-6 py-3 hover:bg-white/[0.02] transition-colors">
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-zinc-200 truncate">{bin.label}</p>
@@ -430,7 +349,7 @@ export function Dashboard() {
                           className="h-full rounded-full transition-all duration-500"
                           style={{
                             width: `${bin.fillPct}%`,
-                            backgroundColor: bin.fillPct >= 80 ? '#ef4444' : bin.fillPct >= 51 ? '#f59e0b' : '#22c55e',
+                            backgroundColor: bin.fillPct >= 80 ? '#ef4444' : bin.fillPct >= 50 ? '#f59e0b' : '#22c55e',
                           }}
                         />
                       </div>
@@ -438,10 +357,14 @@ export function Dashboard() {
                     </div>
                   </div>
                 </div>
-              ))}
+              )) : (
+                <div className="px-6 py-8 text-center text-xs font-mono text-zinc-600">
+                  No bins online
+                </div>
+              )}
             </div>
             <div className="p-4 border-t border-white/[0.05]">
-              <p className="text-xs text-zinc-500 mb-2">Automated Dispatch Engine</p>
+              <p className="text-xs text-zinc-500 mb-2">Route Optimisation</p>
               <Button className="w-full text-xs shadow-xl shadow-white/5" variant="secondary" onClick={() => window.location.href='/trucks'}>
                 View Fleet Routing
               </Button>
@@ -450,7 +373,111 @@ export function Dashboard() {
         </Card>
       </div>
 
-      {/* Activity & Alerts Row */}
+      {/* ── Route Map + Bin Status Panel ─────────────────────── */}
+      {activeRoute && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {/* Active Route Mini-Map */}
+          <Card className="bg-white/[0.01] border-white/[0.05] lg:col-span-2">
+            <CardHeader className="border-b border-white/[0.05]">
+              <CardTitle className="text-sm font-medium tracking-tight flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-zinc-500" />
+                Active Route Map
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0 h-[280px] overflow-hidden rounded-b-2xl">
+              <MapContainer
+                center={[12.9600, 77.4900]}
+                zoom={16}
+                style={{ height: '100%', width: '100%', backgroundColor: '#000' }}
+                zoomControl={false}
+                attributionControl={false}
+              >
+                <TileLayer url={MAP_CONFIG.TILE_URL} />
+                {routePositions.length > 0 && (
+                  <Polyline
+                    positions={routePositions}
+                    color="#ef4444"
+                    weight={3}
+                    opacity={0.8}
+                    dashArray="8, 6"
+                  />
+                )}
+                {fourBins.map(bin => (
+                  <Marker
+                    key={bin.id}
+                    position={[bin.location.lat, bin.location.lng]}
+                    icon={createMiniMapBinIcon(bin.isOnline ? bin.fillPct : 0)}
+                  />
+                ))}
+                {activeTruck && (
+                  <Marker
+                    position={[activeTruck.position.lat, activeTruck.position.lng]}
+                    icon={L.divIcon({
+                      className: 'custom-div-icon bg-transparent',
+                      html: `<div style="
+                        background-color: #22c55e;
+                        width: 16px; height: 16px;
+                        border-radius: 4px;
+                        border: 2px solid rgba(0,0,0,0.8);
+                        box-shadow: 0 0 10px rgba(34,197,94,0.6);
+                      "></div>`,
+                      iconSize: [16, 16],
+                      iconAnchor: [8, 8],
+                    })}
+                  />
+                )}
+              </MapContainer>
+            </CardContent>
+          </Card>
+
+          {/* System Status Summary */}
+          <Card className="bg-white/[0.01] border-white/[0.05]">
+            <CardHeader className="border-b border-white/[0.05]">
+              <CardTitle className="text-sm font-medium tracking-tight flex items-center gap-2">
+                <Activity className="w-4 h-4 text-zinc-500" />
+                System Status
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-5 space-y-3">
+              {fourBins.map(bin => (
+                <div key={bin.id} className="flex items-center justify-between">
+                  <span className="text-sm font-mono text-zinc-400">{bin.label}</span>
+                  <div className="flex items-center gap-2">
+                    {bin.isOnline ? (
+                      <>
+                        <div className="w-20 h-1.5 bg-white/[0.05] rounded-full overflow-hidden">
+                          <div
+                            className="h-full rounded-full transition-all duration-500"
+                            style={{
+                              width: `${bin.fillPct}%`,
+                              backgroundColor: bin.fillPct >= 80 ? '#ef4444' : bin.fillPct >= 50 ? '#f59e0b' : '#22c55e',
+                            }}
+                          />
+                        </div>
+                        <span className={`text-xs font-mono font-bold w-8 text-right ${bin.fillPct >= 80 ? 'text-red-400' : bin.fillPct >= 50 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                          {bin.fillPct}%
+                        </span>
+                      </>
+                    ) : (
+                      <span className="text-xs font-mono text-zinc-600">Offline</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+              <div className="pt-3 border-t border-white/[0.05]">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-mono text-zinc-500">Buzzer / Collection</span>
+                  <span className={`text-xs font-mono font-bold ${anyFull ? 'text-red-400 animate-pulse' : 'text-zinc-600'}`}>
+                    {anyFull ? 'ACTIVE' : 'Idle'}
+                  </span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* ── Activity & Alerts Row ─────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Live Activity Feed */}
         <Card className="bg-white/[0.01] border-white/[0.05]">
@@ -471,7 +498,7 @@ export function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* Recent Alerts */}
+        {/* Active Alerts */}
         <Card className="bg-white/[0.01] border-white/[0.05]">
           <CardHeader className="border-b border-white/[0.05]">
             <CardTitle className="text-sm font-medium tracking-tight flex items-center justify-between">

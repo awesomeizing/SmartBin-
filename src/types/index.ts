@@ -103,6 +103,7 @@ export interface BinSummary {
   address: string;
   location: GeoLocation;
   fillPct: number;
+  distanceCm: number;
   binStatus: BinStatus;
   batteryPct: number;
   rssi: number;

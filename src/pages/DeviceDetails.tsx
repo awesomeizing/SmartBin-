@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useDatabase } from '@/contexts/DatabaseContext';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -22,11 +22,13 @@ const tooltipStyle = {
 export function DeviceDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { getBinById, getHistoryForBin } = useDatabase();
   const { addToast } = useToast();
 
   const device = id ? getBinById(id) : null;
   const history = id ? getHistoryForBin(id) : [];
+  const returnPath = location.pathname.startsWith('/bins') ? '/bins' : '/hardware';
 
   if (!device) {
     return (
@@ -34,16 +36,14 @@ export function DeviceDetails() {
         <Cpu className="w-12 h-12 text-zinc-600 mb-4" />
         <h2 className="text-xl font-medium text-white mb-2">Device Not Found</h2>
         <p className="text-zinc-500 mb-6">The hardware node {id} does not exist or has been decommissioned.</p>
-        <Button onClick={() => navigate('/hardware')}>Return to Fleet</Button>
+        <Button onClick={() => navigate(returnPath)}>Return to Fleet</Button>
       </div>
     );
   }
 
-  // Generate synthetic battery drain history for visualization if missing
-  const batteryHistory = Array.from({ length: 24 }, (_, i) => ({
-    time: `${23 - i}h ago`,
-    level: Math.min(100, device.live.batteryPct + (23 - i) * 0.5 + Math.random() * 2)
-  }));
+  // Battery history from real Firebase data would be shown here.
+  // In simulation mode this data is not available — show a placeholder.
+  const batteryHistory: { time: string; level: number }[] = [];
 
   const handleAction = (action: string) => {
     addToast({ title: 'Command Sent', message: `Executing ${action} on ${device.id}...`, severity: 'info' });
@@ -54,7 +54,7 @@ export function DeviceDetails() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-white/[0.05] pb-6">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/hardware')} className="shrink-0 text-zinc-500 hover:text-white">
+          <Button variant="ghost" size="icon" onClick={() => navigate(returnPath)} className="shrink-0 text-zinc-500 hover:text-white">
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <div>
@@ -213,15 +213,21 @@ export function DeviceDetails() {
               <CardTitle className="text-sm font-medium">Battery Discharge Profile (24h)</CardTitle>
             </CardHeader>
             <CardContent className="h-[250px] p-6">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={batteryHistory} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={CHART_THEME.gridColor} vertical={false} />
-                  <XAxis dataKey="time" stroke={CHART_THEME.axisColor} fontSize={11} tickLine={false} axisLine={false} />
-                  <YAxis domain={[0, 100]} stroke={CHART_THEME.axisColor} fontSize={11} tickLine={false} axisLine={false} />
-                  <Tooltip {...tooltipStyle} />
-                  <Line type="monotone" dataKey="level" stroke="#22c55e" strokeWidth={2} dot={false} name="Battery %" />
-                </LineChart>
-              </ResponsiveContainer>
+              {batteryHistory.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={batteryHistory} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_THEME.gridColor} vertical={false} />
+                    <XAxis dataKey="time" stroke={CHART_THEME.axisColor} fontSize={11} tickLine={false} axisLine={false} />
+                    <YAxis domain={[0, 100]} stroke={CHART_THEME.axisColor} fontSize={11} tickLine={false} axisLine={false} />
+                    <Tooltip {...tooltipStyle} />
+                    <Line type="monotone" dataKey="level" stroke="#22c55e" strokeWidth={2} dot={false} name="Battery %" />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex items-center justify-center text-sm text-zinc-500 font-mono">
+                  Waiting for battery history data from device.
+                </div>
+              )}
             </CardContent>
           </Card>
 

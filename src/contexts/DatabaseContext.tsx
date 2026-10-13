@@ -4,6 +4,7 @@ import { ref as dbRef, onValue as dbOnValue, set as dbSet, push as dbPush, remov
 import { getMockData, toBinSummary } from '@/services/mockData';
 import type { Bin, BinSummary, Truck, Alert, CollectionEvent, TimelineEvent, DailyAnalytics, ZoneAnalytics, Notification, AppConfig, AppUser, AuditLogEntry, HistoryEntry, KPIData, CollectionRoute } from '@/types';
 import { calculateKPIs } from '@/lib/calculations';
+import { SENSOR_TIMEOUT_MS, normalizeBinId } from '@/constants/hardware';
 
 // ── Context Type ───────────────────────────────────────────
 
@@ -27,6 +28,8 @@ interface DatabaseContextType {
 
   // State
   loading: boolean;
+  /** True when running with simulation data (no real Firebase / ESP32) */
+  isSimulationMode: boolean;
 
   // Bin Actions
   addBin: (bin: Partial<Bin>) => Promise<void>;
@@ -155,7 +158,12 @@ export const DatabaseProvider = ({ children }: { children: React.ReactNode }) =>
 
   // ── Computed Values ──────────────────────────────────────
 
-  const binSummaries = useMemo(() => bins.map(toBinSummary), [bins]);
+  // Determine online status using the shared SENSOR_TIMEOUT_MS constant
+  const binSummaries = useMemo(() => bins.map(b => {
+    const summary = toBinSummary(b);
+    // Recompute isOnline using the centralised timeout
+    return { ...summary, isOnline: (Date.now() - b.live.timestamp) < SENSOR_TIMEOUT_MS };
+  }), [bins]);
 
   const kpis = useMemo((): KPIData => {
     const base = calculateKPIs(binSummaries);
@@ -267,9 +275,15 @@ export const DatabaseProvider = ({ children }: { children: React.ReactNode }) =>
     return collections.filter(c => c.collectedAt >= todayStart.getTime());
   }, [collections]);
 
-  const getBinById = useCallback((id: string) => bins.find(b => b.id === id), [bins]);
+  const getBinById = useCallback((id: string) => {
+    const norm = normalizeBinId(id);
+    return bins.find(b => b.id === id || (norm && normalizeBinId(b.id) === norm));
+  }, [bins]);
 
-  const getHistoryForBin = useCallback((binId: string) => history[binId] ?? [], [history]);
+  const getHistoryForBin = useCallback((binId: string) => {
+    const norm = normalizeBinId(binId);
+    return history[binId] ?? (norm ? history[norm] : undefined) ?? [];
+  }, [history]);
 
   // ── Value ────────────────────────────────────────────────
 
@@ -277,6 +291,7 @@ export const DatabaseProvider = ({ children }: { children: React.ReactNode }) =>
     bins, binSummaries, trucks, routes, alerts, notifications, collections,
     timeline, dailyAnalytics, zoneAnalytics, history, config, users, auditLogs, kpis,
     loading,
+    isSimulationMode: IS_DEMO_MODE || config.simulationMode,
     addBin, updateBin, deleteBin, updateTruck, updateRoute, addRoute,
     acknowledgeAlert, resolveAlert,
     markNotificationRead, markAllNotificationsRead, deleteNotification,

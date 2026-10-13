@@ -1,9 +1,15 @@
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { ChevronRight, Activity, Zap, ShieldCheck, Map, ArrowRight, Cpu, Cloud, Database, Mail } from 'lucide-react';
 
 export function Landing() {
   const navigate = useNavigate();
+  const { currentUser, isDemoMode } = useAuth();
+
+  const handleLaunch = () => {
+    navigate(currentUser || isDemoMode ? '/dashboard' : '/login');
+  };
 
   return (
     <div className="min-h-screen bg-background text-foreground overflow-x-hidden selection:bg-zinc-800 selection:text-white">
@@ -25,9 +31,11 @@ export function Landing() {
           <a href="#contact" className="hover:text-white transition-colors">Contact</a>
         </div>
         <div className="flex items-center gap-4">
-          <Button variant="ghost" className="text-zinc-400 hover:text-white" onClick={() => navigate('/login')}>Sign In</Button>
-          <Button className="rounded-full px-6" onClick={() => navigate('/login')}>
-            Console <ArrowRight className="w-4 h-4 ml-2" />
+          <Button variant="ghost" className="text-zinc-400 hover:text-white" onClick={handleLaunch}>
+            {currentUser || isDemoMode ? 'Dashboard' : 'Sign In'}
+          </Button>
+          <Button className="rounded-full px-6" onClick={handleLaunch}>
+            {currentUser || isDemoMode ? 'Open Console' : 'Console'} <ArrowRight className="w-4 h-4 ml-2" />
           </Button>
         </div>
       </nav>
@@ -53,8 +61,8 @@ export function Landing() {
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Button size="lg" className="w-full sm:w-auto rounded-full px-8 shadow-xl shadow-white/5 hover:shadow-white/10" onClick={() => navigate('/login')}>
-              Deploy Platform <ChevronRight className="ml-2 w-4 h-4" />
+            <Button size="lg" className="w-full sm:w-auto rounded-full px-8 shadow-xl shadow-white/5 hover:shadow-white/10" onClick={handleLaunch}>
+              {currentUser || isDemoMode ? 'Open Live 4-Bin Dashboard' : 'Deploy Platform'} <ChevronRight className="ml-2 w-4 h-4" />
             </Button>
             <Button size="lg" variant="outline" className="w-full sm:w-auto rounded-full px-8 hover:bg-white/[0.03]" onClick={() => window.location.hash = '#architecture'}>
               Read Documentation

@@ -92,6 +92,32 @@ class HardwareIntegrationService {
       state: 'active',
     });
   }
+
+  /**
+   * Authoritative backend/service handler for raw telemetry payload.
+   * Conforms to Section 9 & 28 of SmartBin 4-bin specifications:
+   * Converts distanceCm to fillPercentage using shared 11cm → 3cm calibration.
+   */
+  processRawTelemetry(payload: { binId: string; distanceCm: number; timestamp?: number }) {
+    const rawDist = Number(payload.distanceCm);
+    const distanceCm = isNaN(rawDist) ? 11 : Math.max(3, Math.min(11, rawDist));
+    // Shared formula: fillPercentage = ((11 - distance) / 8) * 100
+    const rawPct = ((11 - distanceCm) / 8) * 100;
+    const fillPercentage = Math.round(Math.max(0, Math.min(100, rawPct)) * 10) / 10;
+    const status = fillPercentage >= 80 ? 'FULL' : fillPercentage >= 50 ? 'FILLING' : 'OK';
+
+    return {
+      success: true,
+      bin: {
+        id: payload.binId,
+        distanceCm,
+        fillPercentage,
+        status,
+        sensorOnline: true,
+        timestamp: payload.timestamp || Date.now(),
+      },
+    };
+  }
 }
 
 export const HardwareService = new HardwareIntegrationService();

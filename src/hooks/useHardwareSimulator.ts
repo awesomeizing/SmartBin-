@@ -1,109 +1,91 @@
 import { useEffect, useRef } from 'react';
 import { useDatabase } from '@/contexts/DatabaseContext';
 import { HardwareService } from '@/services/hardware/HardwareServices';
-import type { BinStatus } from '@/types';
-// Not strictly needed here but useful if calculating states
+import { calculateFillPercent, getBinStatus } from '@/lib/calculations';
+import { EMPTY_DISTANCE_CM, FULL_DISTANCE_CM } from '@/constants/hardware';
 
 /**
- * A realistic ESP32 Hardware Simulator.
- * Runs only when IS_DEMO_MODE is true (via DatabaseContext).
- * Randomly modifies live telemetry data (fill level, battery drain, signal fluctuation).
+ * ████████████████████████████████████████████████████████████
+ * ██  SIMULATION MODE — NOT REAL HARDWARE                    ██
+ * ██                                                         ██
+ * ██  This hook is only active when config.simulationMode    ██
+ * ██  is true (i.e., IS_DEMO_MODE, no Firebase credentials). ██
+ * ██                                                         ██
+ * ██  It simulates slow fill-level drift using the REAL      ██
+ * ██  11 cm → 3 cm sensor range and formula. All values      ██
+ * ██  come from the authoritative calculateFillPercent()     ██
+ * ██  function — never from Math.random() directly.          ██
+ * ████████████████████████████████████████████████████████████
+ *
+ * Behaviour:
+ *  - Advances `distanceCm` by a tiny step each cycle (sensor fills up).
+ *  - When distance reaches FULL_DISTANCE_CM, resets to EMPTY (collection).
+ *  - Each bin advances at a slightly different rate for realism.
+ *  - NEVER picks a random new fill level — values are always derived from
+ *    the real formula so the % displayed matches what a real sensor would give.
  */
 export function useHardwareSimulator(enabled: boolean = true) {
   const { bins, updateBin, config } = useDatabase();
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Per-bin drift rates in cm/cycle (different rates simulate different bins filling at different speeds)
+  const DRIFT_RATE_CM_PER_CYCLE: Record<string, number> = {
+    'BIN-01': 0.05,
+    'BIN-02': 0.10, // Canteen — fills fastest
+    'BIN-03': 0.03, // CSE — fills slowest
+    'BIN-04': 0.07,
+    'BIN-001': 0.05,
+    'BIN-002': 0.10,
+    'BIN-003': 0.03,
+    'BIN-004': 0.07,
+  };
+
   useEffect(() => {
     if (!enabled || !config.simulationMode || bins.length === 0) return;
 
-    // Run simulator loop every 5 seconds
+    // Simulation loop every 5 seconds
     timerRef.current = setInterval(() => {
-      // Pick 2-4 random bins to update each cycle to simulate staggered reporting
-      const numToUpdate = Math.floor(Math.random() * 3) + 2;
-      const shuffled = [...bins].sort(() => 0.5 - Math.random());
-      const selectedBins = shuffled.slice(0, numToUpdate);
+      // Update all 4 bins each cycle (not random selection — avoids confusing the user)
+      bins.forEach(bin => {
+        const driftRate = DRIFT_RATE_CM_PER_CYCLE[bin.id] ?? 0.05;
 
-      selectedBins.forEach(bin => {
-        // Skip simulated bins that are currently 'offline' with 5% probability
-        const isCurrentlyOffline = Date.now() - bin.live.timestamp > 300000;
-        if (!isCurrentlyOffline && Math.random() < 0.05) {
-          // Simulate offline by not updating timestamp
-          return;
+        // Distance decreases as bin fills (waste rises toward sensor)
+        let newDistance = bin.live.distanceCm - driftRate;
+
+        // When full (distance <= FULL_DISTANCE_CM), simulate a collection reset
+        if (newDistance <= FULL_DISTANCE_CM) {
+          newDistance = EMPTY_DISTANCE_CM; // Collection event
+          HardwareService.logEvent(bin.id, 'collection', `[SIM] ${bin.id} collected — reset to empty`);
         }
 
-        // --- Simulate Telemetry Drift ---
-        
-        // 1. Fill Level increases linearly with slight noise
-        let newFillPct = bin.live.fillPct;
-        if (newFillPct < 100 && Math.random() < 0.7) {
-          newFillPct += Math.random() * 2; // +0 to 2%
-        }
-        if (newFillPct > 100) newFillPct = 100;
+        // Clamp to valid sensor range
+        newDistance = Math.max(FULL_DISTANCE_CM, Math.min(EMPTY_DISTANCE_CM, newDistance));
+        newDistance = Math.round(newDistance * 10) / 10;
 
-        // Simulate sudden drop (collection event)
-        if (newFillPct > 90 && Math.random() < 0.2) {
-          newFillPct = 0; // Truck collected it
-        }
+        // Use the SINGLE authoritative formula
+        const newFillPct = calculateFillPercent(newDistance);
+        const newStatus  = getBinStatus(newFillPct);
 
-        const newDistanceCm = Math.max(10, bin.meta.depthCm * (1 - newFillPct / 100));
-
-        let newStatus: BinStatus = 'Empty';
-        if (newFillPct >= 80) newStatus = 'Full';
-        else if (newFillPct >= 50) newStatus = 'Half';
-
-        // 2. Battery drains very slowly
-        let newBattery = bin.live.batteryPct;
-        if (Math.random() < 0.1) {
-          newBattery -= 0.1; 
-        }
-        if (newBattery <= 0) newBattery = 0;
-
-        // 3. Signal Strength fluctuates
-        const newRssi = -60 + Math.floor(Math.random() * 15 - 7.5);
-
-        // 4. Environmental fluctuates
-        let newTemp = bin.reserved.temperatureC;
-        if (newTemp !== null) {
-          newTemp += (Math.random() * 0.4 - 0.2);
-        }
-
-        // --- Execute Update ---
         const liveUpdate = {
           ...bin.live,
-          fillPct: Math.round(newFillPct * 10) / 10,
-          distanceCm: Math.round(newDistanceCm),
+          distanceCm: newDistance,
+          fillPct: newFillPct,
           binStatus: newStatus,
-          batteryPct: Math.round(newBattery * 10) / 10,
-          rssi: newRssi,
           timestamp: Date.now(),
         };
 
-        const reservedUpdate = {
-          ...bin.reserved,
-          temperatureC: newTemp !== null ? Math.round(newTemp * 10) / 10 : null,
-        };
+        updateBin(bin.id, { live: liveUpdate });
 
-        // Update via DatabaseContext which updates internal state
-        updateBin(bin.id, {
-          live: liveUpdate,
-          reserved: reservedUpdate,
-        });
-
-        // Generate logs randomly
-        if (Math.random() < 0.05) {
-          HardwareService.logEvent(bin.id, 'telemetry', `Pushed update: ${Math.round(newFillPct)}%`);
+        // Log alerts when crossing the FULL threshold (80%)
+        if (newFillPct >= 80 && bin.live.fillPct < 80) {
+          HardwareService.logEvent(bin.id, 'threshold', `[SIM] ${bin.id} reached FULL threshold (${newFillPct}%)`);
         }
-
-        // Trigger Alerts
-        if (newBattery < 20 && bin.live.batteryPct >= 20) {
-          HardwareService.triggerAlert(bin.id, bin.meta.label, 'battery_low', 'warning', `Battery dropped to ${Math.round(newBattery)}%`);
-        }
-        
       });
     }, 5000);
 
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, bins, updateBin, config.simulationMode]);
 }

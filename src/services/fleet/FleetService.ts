@@ -1,5 +1,5 @@
 import { db, IS_DEMO_MODE } from '@/lib/firebase';
-import { ref, update, push, set } from 'firebase/database';
+import { ref, update, set } from 'firebase/database';
 import type { CollectionRoute, Truck, CollectionEvent } from '@/types';
 
 /**

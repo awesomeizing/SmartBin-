@@ -37,17 +37,20 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
+  const [currentUser, setCurrentUser] = useState<User | null>(() => {
     if (IS_DEMO_MODE) {
-      setCurrentUser({
+      return {
         uid: 'demo-admin',
         email: 'admin@smartbin.io',
         displayName: 'Demo Admin',
-      } as User);
-      setLoading(false);
+      } as User;
+    }
+    return null;
+  });
+  const [loading, setLoading] = useState(() => !IS_DEMO_MODE);
+
+  useEffect(() => {
+    if (IS_DEMO_MODE) {
       return;
     }
 

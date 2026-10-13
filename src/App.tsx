@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { ProtectedRoute } from '@/components/layout/ProtectedRoute';
 import { Landing } from '@/pages/Landing';
 import { Login } from '@/pages/Login';
@@ -21,7 +21,8 @@ import { DeviceDetails } from '@/pages/DeviceDetails';
 function App() {
   return (
     <Routes>
-      <Route path="/" element={<Landing />} />
+      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/landing" element={<Landing />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -29,6 +30,7 @@ function App() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/map" element={<MapView />} />
         <Route path="/bins" element={<Bins />} />
+        <Route path="/bins/:id" element={<DeviceDetails />} />
         <Route path="/trucks" element={<Trucks />} />
         <Route path="/alerts" element={<Alerts />} />
         <Route path="/notifications" element={<Notifications />} />

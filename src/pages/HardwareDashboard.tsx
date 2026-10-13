@@ -5,11 +5,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { LiveDeviceCard } from '@/components/hardware/LiveDeviceCard';
+import { SimulationBanner } from '@/components/dashboard/SimulationBanner';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Search, Cpu, Wifi, WifiOff, Battery, AlertTriangle } from 'lucide-react';
 
 export function HardwareDashboard() {
-  const { binSummaries } = useDatabase();
+  const { binSummaries, isSimulationMode } = useDatabase();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'all' | 'online' | 'offline' | 'low_battery' | 'faulty'>('all');
 
@@ -42,6 +43,9 @@ export function HardwareDashboard() {
 
   return (
     <div className="space-y-8 animate-fade-in pb-12 max-w-7xl mx-auto">
+      {/* Simulation Banner */}
+      <SimulationBanner visible={isSimulationMode} />
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-white/[0.05] pb-6">
         <div>
@@ -49,7 +53,7 @@ export function HardwareDashboard() {
             <Cpu className="w-6 h-6 text-emerald-500" />
             Hardware Telemetry
           </h1>
-          <p className="text-zinc-500 text-sm mt-1">Real-time status of all {binSummaries.length} deployed ESP32 nodes.</p>
+          <p className="text-zinc-500 text-sm mt-1">Real-time status of all 4 deployed ESP32 nodes.</p>
         </div>
       </div>
 

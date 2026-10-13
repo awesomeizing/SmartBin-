@@ -12,7 +12,36 @@
 </head>
 
 <body>
-  <div id="root"></div>
+  <div id="root">
+    <noscript>
+      <div style="font-family: system-ui, sans-serif; background: #09090b; color: #fafafa; padding: 2rem; min-height: 100vh; display: flex; align-items: center; justify-content: center; text-align: center;">
+        <div>
+          <h1 style="font-size: 1.5rem; margin-bottom: 0.5rem;">JavaScript Required</h1>
+          <p style="color: #a1a1aa;">Please enable JavaScript to run SmartBin Enterprise.</p>
+        </div>
+      </div>
+    </noscript>
+    <div id="file-protocol-warning" style="display: none; font-family: system-ui, sans-serif; background: #09090b; color: #fafafa; padding: 2rem; min-height: 100vh; align-items: center; justify-content: center; text-align: center;">
+      <div style="max-width: 480px; margin: auto; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 1rem; padding: 2rem;">
+        <h2 style="font-size: 1.25rem; font-weight: 600; margin-bottom: 0.75rem;">SmartBin+ Development Server Required</h2>
+        <p style="color: #a1a1aa; font-size: 0.875rem; line-height: 1.5; margin-bottom: 1.5rem;">
+          You opened this file directly via <code>file://</code>. As a modern React and TypeScript application, SmartBin must be viewed through its local development server.
+        </p>
+        <div style="background: rgba(0,0,0,0.5); padding: 0.75rem 1rem; border-radius: 0.5rem; font-family: monospace; font-size: 0.875rem; color: #4ade80; margin-bottom: 1rem;">
+          npm run dev
+        </div>
+        <p style="color: #71717a; font-size: 0.75rem;">
+          Then open <a href="http://localhost:5173" style="color: #60a5fa;">http://localhost:5173</a> in your browser.
+        </p>
+      </div>
+    </div>
+    <script>
+      if (window.location.protocol === 'file:') {
+        var el = document.getElementById('file-protocol-warning');
+        if (el) el.style.display = 'flex';
+      }
+    </script>
+  </div>
   <script type="module" src="/src/main.tsx"></script>
 </body>
 

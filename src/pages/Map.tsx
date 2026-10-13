@@ -10,8 +10,8 @@ import { ProgressBar } from '@/components/ui/progress';
 import { formatRelativeTime, formatSignal, formatTemperature, formatHumidity } from '@/lib/formatters';
 import { getFillColor } from '@/lib/calculations';
 import { MAP_CONFIG } from '@/constants';
-import { Search, X, MapPin, Battery, Wifi, Thermometer, Droplets, Clock, Navigation, Truck } from 'lucide-react';
-import type { BinSummary, Truck as TruckType, CollectionRoute, RouteStop } from '@/types';
+import { Search, X, MapPin, Battery, Wifi, Thermometer, Droplets, Clock, Navigation } from 'lucide-react';
+import type { BinSummary, RouteStop } from '@/types';
 
 // Fix Leaflet's default icon path issues in Vite
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -79,6 +79,14 @@ export function MapView() {
     });
   }, [binSummaries, search, statusFilter]);
 
+  // Detect bins with unconfigured (zero) coordinates
+  const IS_LIVE = !filtered.some(b => b.source === 'simulated' || b.source === 'placeholder');
+  const binsWithCoords = filtered.filter(bin => {
+    const { lat, lng } = bin.location;
+    return Math.abs(lat) > 0.001 || Math.abs(lng) > 0.001;
+  });
+  const hasLocations = binsWithCoords.length > 0;
+
   const position: [number, number] = [MAP_CONFIG.CENTER.lat, MAP_CONFIG.CENTER.lng];
 
   return (
@@ -87,7 +95,11 @@ export function MapView() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-white/[0.05] pb-6">
         <div>
           <h1 className="text-2xl font-display font-medium tracking-tight">Geospatial Intelligence</h1>
-          <p className="text-zinc-500 text-sm mt-1">Real-time view of {binSummaries.length} active nodes across Bengaluru.</p>
+          <p className="text-zinc-500 text-sm mt-1">
+            {IS_LIVE
+              ? `Real-time view of ${binSummaries.length} active IoT nodes.`
+              : `Demo view of ${binSummaries.length} simulated bins — configure Firebase for live coordinates.`}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           {['all', 'Empty', 'Half', 'Full'].map(status => (
@@ -124,8 +136,20 @@ export function MapView() {
           <MapContainer center={position} zoom={MAP_CONFIG.ZOOM} style={{ height: '100%', width: '100%', backgroundColor: '#000' }}>
             <TileLayer url={MAP_CONFIG.TILE_URL} attribution={MAP_CONFIG.TILE_ATTRIBUTION} />
 
-            {/* Render bins */}
-            {!loading && filtered.map(bin => (
+            {/* Live mode: warn if physical bin locations have not been configured */}
+            {IS_LIVE && !hasLocations && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-[1001] rounded-2xl">
+                <div className="text-center px-6 py-4 bg-zinc-900/95 border border-white/10 rounded-xl">
+                  <p className="text-amber-400 font-mono font-bold text-sm mb-1">Bin locations not configured</p>
+                  <p className="text-zinc-400 text-xs">Update bin coordinates in Settings → Bins once physical positions are surveyed.</p>
+                </div>
+              </div>
+            )}
+
+            {/* Render bins — skip those with unconfigured (0,0) coordinates in live mode */}
+            {!loading && filtered
+              .filter(bin => !IS_LIVE || (Math.abs(bin.location.lat) > 0.001 || Math.abs(bin.location.lng) > 0.001))
+              .map(bin => (
               <Marker
                 key={bin.id}
                 position={[bin.location.lat, bin.location.lng]}

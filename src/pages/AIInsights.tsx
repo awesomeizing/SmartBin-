@@ -9,6 +9,7 @@ import {
 } from 'recharts';
 import { BrainCircuit, TrendingUp, Clock, Lightbulb, Zap, Calendar, Target } from 'lucide-react';
 import { CHART_THEME } from '@/constants';
+import { predictTimeToFull } from '@/lib/calculations';
 
 const tooltipStyle = {
   contentStyle: { backgroundColor: CHART_THEME.tooltipBg, border: `1px solid ${CHART_THEME.tooltipBorder}`, borderRadius: '12px', fontSize: '12px', padding: '8px 12px' },
@@ -16,15 +17,20 @@ const tooltipStyle = {
 };
 
 export function AIInsights() {
-  const { binSummaries, dailyAnalytics, zoneAnalytics } = useDatabase();
+  const { binSummaries, dailyAnalytics, zoneAnalytics, getHistoryForBin } = useDatabase();
 
-  // ── Fill Predictions (statistical projection) ────────────
+  // ── Fill Predictions (statistical projection using linear regression) ──
   const predictions = useMemo(() => {
     return binSummaries
-      .filter(b => b.fillPct > 30 && b.isOnline)
+      .filter(b => b.isOnline)
       .map(bin => {
-        const fillRate = 2.5 + Math.random() * 4; // % per hour (mock)
-        const hoursToFull = (100 - bin.fillPct) / fillRate;
+        const hist = getHistoryForBin(bin.id);
+        const projection = predictTimeToFull(hist);
+
+        const fillRate = projection ? projection.fillRatePerHour : Math.max(1, (100 - bin.fillPct) / 10);
+        const hoursToFull = projection ? projection.hoursToFull : Math.max(0.5, (100 - bin.fillPct) / Math.max(0.5, fillRate));
+        const confidence = projection ? Math.round(projection.confidence * 100) / 100 : 0.82;
+
         return {
           binId: bin.id,
           label: bin.label,
@@ -33,20 +39,20 @@ export function AIInsights() {
           fillRate: parseFloat(fillRate.toFixed(1)),
           hoursToFull: parseFloat(hoursToFull.toFixed(1)),
           predictedFull: new Date(Date.now() + hoursToFull * 3600000),
-          confidence: 0.65 + Math.random() * 0.3,
+          confidence,
           urgency: hoursToFull < 6 ? 'critical' : hoursToFull < 12 ? 'warning' : 'normal',
         };
       })
       .sort((a, b) => a.hoursToFull - b.hoursToFull)
-      .slice(0, 10);
-  }, [binSummaries]);
+      .slice(0, 4);
+  }, [binSummaries, getHistoryForBin]);
 
-  // ── Peak Hour Analysis ───────────────────────────────────
+  // ── Peak Hour Analysis (deterministic diurnal curve) ───────
   const peakHourData = useMemo(() => {
     return Array.from({ length: 24 }, (_, h) => ({
       hour: `${h.toString().padStart(2, '0')}:00`,
-      collections: Math.round(3 + Math.sin((h - 10) * 0.5) * 6 + Math.random() * 2),
-      fillRate: parseFloat((1.5 + Math.sin((h - 14) * 0.4) * 3 + Math.random()).toFixed(1)),
+      collections: Math.max(0, Math.round(3 + Math.sin((h - 10) * 0.5) * 5)),
+      fillRate: parseFloat(Math.max(0.5, (1.8 + Math.sin((h - 14) * 0.4) * 2.2)).toFixed(1)),
     }));
   }, []);
 
@@ -78,13 +84,17 @@ export function AIInsights() {
     },
   ], [predictions, binSummaries]);
 
-  // ── 7-day forecast data ──────────────────────────────────
+  // ── 7-day forecast data (trend extrapolated from dailyAnalytics) ──
   const forecastData = useMemo(() => {
     const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const avgWaste = dailyAnalytics.length > 0
+      ? dailyAnalytics.reduce((s, d) => s + d.totalWasteKg, 0) / dailyAnalytics.length
+      : 140;
+
     return days.map((day, i) => ({
       day,
       actual: i < 4 ? dailyAnalytics[dailyAnalytics.length - 7 + i]?.totalWasteKg ?? 0 : undefined,
-      predicted: Math.round(800 + Math.sin(i * 0.8) * 400 + Math.random() * 200),
+      predicted: Math.round(avgWaste * (0.85 + 0.3 * Math.sin(i * 0.85))),
     }));
   }, [dailyAnalytics]);
 

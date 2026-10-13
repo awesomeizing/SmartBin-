@@ -19,35 +19,35 @@ The bin object is strictly separated into `meta`, `live`, `health`, and `reserve
 Written once during provisioning. ESP32 usually only reads this, but may write its MAC address or firmware version here on first boot.
 ```json
 {
-  "binId": "B-001",           // Hardware ID
-  "label": "Central Park N",  // Human-readable name
+  "binId": "BIN-01",          // Real hardware node ID: BIN-01, BIN-02, BIN-03, BIN-04
+  "label": "Bin 1",           // Human-readable name
   "zone": "Zone-A",           // Collection zone
-  "address": "123 Park Ave",
+  "address": "Main Entrance, Global Academy of Technology",
   "location": {
-    "lat": 12.9716,
-    "lng": 77.5946,
-    "source": "gps"           // "gps" if from NEO-6M, "manual" if assigned
+    "lat": 12.9606,
+    "lng": 77.4900,
+    "source": "manual"
   },
-  "depthCm": 120,             // Total physical depth of the bin in cm (for % calc)
-  "thresholdPct": 80,         // When to trigger a full alert
-  "capacity": 240,            // Total volume in liters
+  "depthCm": 11,              // Calibration: 11 cm (EMPTY) down to 3 cm (FULL)
+  "thresholdPct": 80,         // When to trigger a FULL alert & turn LED on
+  "capacity": 20,             // Total volume in liters
   "source": "device",         // "device" | "simulated"
-  "installedAt": 1715623000000 // Epoch ms
+  "installedAt": 1715623000000
 }
 ```
 
 ### `live` (Real-time Telemetry)
-Written by the ESP32 every 30-60 seconds (or immediately on threshold trigger).
+Written by the ESP32 every 30–60 seconds (or immediately on threshold trigger).
 ```json
 {
-  "distanceCm": 30,           // Raw ultrasonic reading
-  "fillPct": 75,              // Server or ESP calculated: (1 - distanceCm/depthCm) * 100
-  "binStatus": "Half",        // "Empty" (<50%), "Half" (50-80%), "Full" (>80%)
+  "distanceCm": 7.0,          // Raw ultrasonic reading (11cm = 0%, 3cm = 100%)
+  "fillPct": 50,              // Calculated: ((11 - distanceCm) / (11 - 3)) * 100
+  "binStatus": "Half",        // "Empty" (0–49%), "Half" (50–79%), "Full" (80–100%)
   "messageStatus": "Delivered",
-  "rssi": -65,                // WiFi/GSM signal strength in dBm
-  "batteryPct": 85,           // Battery 0-100%
+  "rssi": -65,                // WiFi signal strength in dBm
+  "batteryPct": 92,           // Battery 0–100%
   "uptimeSec": 3600,          // Seconds since last ESP reset
-  "firmware": "v2.1.4",       // Current OTA version
+  "firmware": "v2.1.4",       // Current firmware version
   "timestamp": 1715623050000  // Epoch ms of reading
 }
 ```
