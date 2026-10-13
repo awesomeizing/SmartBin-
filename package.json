@@ -1,5 +1,5 @@
 {
-  "name": "temp-vite",
+  "name": "smartbin-plus",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "clsx": "^2.1.1",
@@ -39,6 +41,7 @@
     "postcss": "^8.5.23",
     "tailwindcss": "^4.3.3",
     "typescript": "~6.0.2",
-    "vite": "^8.1.1"
+    "vite": "^8.1.1",
+    "vitest": "^3.2.4"
   }
 }

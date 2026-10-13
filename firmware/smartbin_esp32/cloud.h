@@ -192,92 +192,63 @@ inline bool cloudAuthenticate() {
 }
 
 /**
- * Upload a telemetry reading.
+ * Upload one bin's telemetry.
  *
- * Writes to bins/{BIN_ID}/live via a PUT, replacing the node. History is
- * appended by the dashboard rather than the device, to keep the firmware's
- * request count and payload size down.
+ * Writes to bins/{binId}/live. Each bin is a separate PATCH, so a failure on
+ * one does not take the other three offline on the dashboard.
  *
- * @param distanceCm
- * @param fillPercent
- * @param binStatus   "Empty" / "Half" / "Full"
- * @param sensorOk
+ * The device sends the RAW DISTANCE and lets the backend derive the
+ * percentage. The percentage is included only so the record is readable on
+ * its own; src/lib/telemetry.ts recomputes it from distanceCm and that value
+ * is what a human sees. A device with a miscalibrated constant therefore
+ * cannot mislead the dashboard.
+ *
+ * `timestamp` is {".sv":"timestamp"} — the Firebase SERVER clock. A device
+ * with a wrong RTC must not be able to appear permanently online by sending
+ * a time far in the future.
+ *
+ * @param binId       e.g. "BIN-01"
+ * @param deviceId    e.g. "ESP32-SMARTBIN-01"
+ * @param distanceCm  median-filtered reading, NAN when the sensor failed
+ * @param fillPercent derived percentage, NAN when unknown
+ * @param sensorOk    false when this bin's HC-SR04 gave no usable echo
  * @return true on HTTP 200.
  */
-inline bool cloudUpload(float distanceCm, float fillPercent,
-                        const char* binStatus, bool sensorOk) {
+inline bool cloudUploadBin(const char* binId, const char* deviceId,
+                           float distanceCm, float fillPercent, bool sensorOk) {
   if (!cloudEnsureConnection()) { lastUploadOk = false; return false; }
   if (!cloudAuthenticate())     { lastUploadOk = false; return false; }
 
   HTTPClient http;
 
-  String url = String(FIREBASE_HOST) + "/bins/" + BIN_ID + "/live.json?auth=" + idToken;
+  String url = String(FIREBASE_HOST) + "/bins/" + binId + "/live.json?auth=" + idToken;
 
   http.begin(url);
   http.addHeader("Content-Type", "application/json");
 
-  // StaticJsonDocument, not DynamicJsonDocument. REPORT §5.2 item 4 — this is
-  // what prevents heap fragmentation over long uptime.
-  StaticJsonDocument<256> payload;
+  // StaticJsonDocument, not Dynamic — static allocation is what keeps the
+  // heap from fragmenting over weeks of uptime.
+  StaticJsonDocument<320> payload;
 
-  payload["distanceCm"]    = round(distanceCm * 10) / 10.0;
-  payload["fillPct"]       = round(fillPercent * 10) / 10.0;
-  payload["binStatus"]     = binStatus;
-  payload["messageStatus"] = "Delivered";
-  payload["rssi"]          = WiFi.RSSI();
-  payload["uptimeSec"]     = millis() / 1000;
-  payload["firmware"]      = FIRMWARE_VERSION;
-  payload["timestamp"]     = (unsigned long)(millis());
+  payload["deviceId"] = deviceId;
+  payload["sensorOk"] = sensorOk;
 
-  String body;
-  serializeJson(payload, body);
-
-  int status = http.PUT(body);
-  http.end();
-
-  lastUploadOk = (status == 200);
-
-#if DEBUG_SERIAL
-  if (lastUploadOk) {
-    Serial.print(F("[cloud] uploaded "));
-    Serial.print(fillPercent, 1);
-    Serial.print(F("% ("));
-    Serial.print(distanceCm, 1);
-    Serial.println(F(" cm)"));
+  // A failed read sends NULL, never 0. Zero would read as a full bin.
+  if (sensorOk && !isnan(distanceCm)) {
+    payload["distanceCm"] = round(distanceCm * 10) / 10.0;
+    payload["fillPct"]    = round(fillPercent * 10) / 10.0;
   } else {
-    Serial.print(F("[cloud] upload failed, HTTP "));
-    Serial.println(status);
+    payload["distanceCm"] = (char*)NULL;
+    payload["fillPct"]    = (char*)NULL;
   }
-#endif
 
-  // A 401 means the token expired early; clear it so the next cycle
-  // re-authenticates rather than repeating a doomed request.
-  if (status == 401) idToken = "";
+  payload["rssi"]      = WiFi.RSSI();
+  payload["uptimeSec"] = millis() / 1000;
+  payload["firmware"]  = FIRMWARE_VERSION;
 
-  return lastUploadOk;
-}
-
-/**
- * Report component health to bins/{BIN_ID}/health.
- *
- * @param sensorOk
- * @return true on success.
- */
-inline bool cloudUploadHealth(bool sensorOk) {
-  if (WiFi.status() != WL_CONNECTED) return false;
-  if (!cloudAuthenticate()) return false;
-
-  HTTPClient http;
-
-  String url = String(FIREBASE_HOST) + "/bins/" + BIN_ID + "/health.json?auth=" + idToken;
-
-  http.begin(url);
-  http.addHeader("Content-Type", "application/json");
-
-  StaticJsonDocument<192> payload;
-  payload["sensorOk"]  = sensorOk;
-  payload["wifiOk"]    = true;
-  payload["updatedAt"] = (unsigned long)millis();
+  // Firebase server-side timestamp sentinel.
+  JsonObject ts = payload.createNestedObject("timestamp");
+  ts[".sv"] = "timestamp";
 
   String body;
   serializeJson(payload, body);
@@ -285,7 +256,35 @@ inline bool cloudUploadHealth(bool sensorOk) {
   int status = http.PATCH(body);
   http.end();
 
-  return status == 200;
+  bool ok = (status == 200);
+
+#if DEBUG_SERIAL
+  if (ok) {
+    Serial.print(F("[cloud] "));
+    Serial.print(binId);
+    Serial.print(F(" -> "));
+    if (sensorOk) {
+      Serial.print(fillPercent, 1);
+      Serial.print(F("% ("));
+      Serial.print(distanceCm, 1);
+      Serial.println(F(" cm)"));
+    } else {
+      Serial.println(F("SENSOR FAULT"));
+    }
+  } else {
+    Serial.print(F("[cloud] "));
+    Serial.print(binId);
+    Serial.print(F(" upload failed, HTTP "));
+    Serial.println(status);
+  }
+#endif
+
+  // 401 means the token expired early; clear it so the next cycle
+  // re-authenticates rather than repeating a doomed request.
+  if (status == 401) idToken = "";
+
+  lastUploadOk = ok;
+  return ok;
 }
 
 /** @return true if the last upload succeeded. */

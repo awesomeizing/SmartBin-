@@ -1,27 +1,23 @@
 /**
- * SmartBin+ — Firmware Configuration
+ * SmartBin+ — Firmware Configuration (4-bin build)
  * =============================================================================
- * Per-device settings. Every bin gets its own copy of this file with a
- * different BIN_ID.
+ * ONE ESP32 drives all four physical bins:
+ *   · four HC-SR04 ultrasonic sensors
+ *   · four indicator LEDs
+ *   · four SSD1306 OLEDs behind a TCA9548A I2C multiplexer
+ *   · one shared buzzer
  *
- * SECURITY: this file contains Wi-Fi and Firebase credentials. Add it to
- * .gitignore before committing. A template is provided as config.example.h.
+ * SECURITY: this file holds Wi-Fi and Firebase credentials. Copy it to
+ * config.h from config.example.h and keep config.h out of git.
  *
- * Values marked REPORT are fixed by the Major Project Phase-I report
- * (CSEP23605) and match the web application exactly. If you change one here,
- * change it in config/app.config.js too — a dashboard and a device that
- * disagree about what "80% full" means is worse than either being wrong alone.
+ * The calibration and threshold values below are mirrored in
+ * src/config/devices.config.ts. A dashboard and a device that disagree about
+ * what "80 % full" means is worse than either being wrong alone — if you
+ * change one, change both.
  */
 
 #ifndef SMARTBIN_CONFIG_H
 #define SMARTBIN_CONFIG_H
-
-/* ---------------------------------------------------------------------------
- * DEVICE IDENTITY
- * Each physical bin needs a unique ID matching its Firebase registration.
- * ------------------------------------------------------------------------- */
-#define BIN_ID          "BIN-001"
-#define FIRMWARE_VERSION "1.0.0"
 
 /* ---------------------------------------------------------------------------
  * NETWORK
@@ -31,8 +27,8 @@
 
 /* ---------------------------------------------------------------------------
  * FIREBASE
- * From Firebase Console → Project Settings → General → Web API Key,
- * and Realtime Database → the URL shown at the top of the Data tab.
+ * Console → Project Settings → General → Web API Key, and
+ * Realtime Database → the URL at the top of the Data tab.
  * ------------------------------------------------------------------------- */
 #define FIREBASE_HOST   "https://YOUR-PROJECT-default-rtdb.asia-southeast1.firebasedatabase.app"
 #define FIREBASE_API_KEY "YOUR_WEB_API_KEY"
@@ -41,81 +37,119 @@
  * Device service account.
  *
  * Create a dedicated Email/Password user in Firebase Authentication for the
- * devices — do NOT reuse an administrator login. The security rules grant
- * this account write access to bins/{id}/live only.
+ * hardware — never reuse an administrator login. The security rules in
+ * firebase-rules.json grant this account write access to bins/{id}/live and
+ * nothing else.
  */
 #define DEVICE_EMAIL    "device@smartbin.local"
 #define DEVICE_PASSWORD "YOUR_DEVICE_PASSWORD"
 
-/* ---------------------------------------------------------------------------
- * PINS — REPORT §5.1 Step 1
- * "The HC-SR04 ultrasonic sensor's TRIG and ECHO pins were connected to
- *  GPIO 5 and GPIO 18 of the ESP32 development board, respectively."
- * ------------------------------------------------------------------------- */
-#define PIN_TRIG        5     // REPORT
-#define PIN_ECHO        18    // REPORT
-#define PIN_LED_RED     2
-#define PIN_BUZZER      4
-#define PIN_OLED_SDA    21
-#define PIN_OLED_SCL    22
+#define FIRMWARE_VERSION "2.0.0"
 
 /* ---------------------------------------------------------------------------
- * SENSING — REPORT §3.3, §3.1, §5.2
+ * BIN COUNT
  * ------------------------------------------------------------------------- */
+#define BIN_COUNT 4
 
-/** d_max: sensor-to-bottom distance when empty. REPORT §3.3 — 20 cm bin. */
-#define BIN_DEPTH_CM    20.0f
+/* ---------------------------------------------------------------------------
+ * PER-BIN WIRING
+ *
+ *   Bin   TRIG   ECHO   LED   OLED channel
+ *   ----  -----  -----  ----  ------------
+ *    1      5     27     26        3
+ *    2     18     34     25        1
+ *    3     19     35      4        2
+ *    4     23     32     14        0
+ *
+ * NOTE — GPIO 34 and 35 are INPUT-ONLY on the ESP32. That is fine for ECHO
+ * (an input) and would be broken for TRIG or an LED. Do not swap them.
+ *
+ * NOTE — HC-SR04 ECHO idles at 5 V and the ESP32 pins are 3.3 V tolerant
+ * only. Each ECHO line must go through a level shifter or a divider
+ * (1 kΩ series + 2 kΩ to ground works). Driving these pins at 5 V will
+ * eventually destroy the input.
+ *
+ * Defined as initialisers so bins live in ARRAYS, never as four copy-pasted
+ * blocks of code.
+ * ------------------------------------------------------------------------- */
+#define BIN_IDS        { "BIN-01", "BIN-02", "BIN-03", "BIN-04" }
+#define BIN_DEVICE_IDS { "ESP32-SMARTBIN-01", "ESP32-SMARTBIN-02", \
+                         "ESP32-SMARTBIN-03", "ESP32-SMARTBIN-04" }
+#define BIN_LABELS     { "Bin 1", "Bin 2", "Bin 3", "Bin 4" }
 
-/** HC-SR04 datasheet limits. REPORT §3.3. */
+#define PINS_TRIG      {  5, 18, 19, 23 }
+#define PINS_ECHO      { 27, 34, 35, 32 }
+#define PINS_LED       { 26, 25,  4, 14 }
+#define OLED_CHANNELS  {  3,  1,  2,  0 }
+
+/* ---------------------------------------------------------------------------
+ * SHARED HARDWARE
+ * ------------------------------------------------------------------------- */
+#define PIN_BUZZER      13
+#define PIN_I2C_SDA     16
+#define PIN_I2C_SCL     17
+
+#define TCA9548A_ADDR   0x70
+#define OLED_ADDR       0x3C
+#define OLED_WIDTH      128
+#define OLED_HEIGHT     64
+
+/* ---------------------------------------------------------------------------
+ * SENSOR CALIBRATION — mirrors src/config/devices.config.ts
+ *
+ *   fillPct = ((EMPTY_DISTANCE_CM - d) / (EMPTY_DISTANCE_CM - FULL_DISTANCE_CM)) * 100
+ *
+ *   11 cm → 0 %      7 cm → 50 %      3 cm → 100 %
+ *
+ * These are MEASURED values for the prototype, not the bin's geometric
+ * depth — the sensor sits below the lid, so the usable travel is 8 cm.
+ * ------------------------------------------------------------------------- */
+#define EMPTY_DISTANCE_CM 11.0f
+#define FULL_DISTANCE_CM   3.0f
+
+/** HC-SR04 datasheet limits. A reading outside this is a FAULT, not 0 %. */
 #define SENSOR_MIN_CM   2.0f
 #define SENSOR_MAX_CM   400.0f
 
-/** Rolling median window. REPORT §5.2 item 1 — "five-sample rolling median". */
+/** Five-sample rolling median rejects the single-sample spikes HC-SR04 emits. */
 #define MEDIAN_WINDOW   5
+#define SAMPLE_DELAY_MS 40
 
-/** Delay between the samples that feed one median, in milliseconds. */
-#define SAMPLE_DELAY_MS 60
-
-/* ---------------------------------------------------------------------------
- * THRESHOLDS — REPORT §3.1
- * Bands: Empty 0-50, Half 51-79, Full 80-100.
- * ------------------------------------------------------------------------- */
-#define BAND_EMPTY_MAX  50.0f
-#define BAND_HALF_MAX   79.0f
-#define ALERT_THRESHOLD 80.0f
+/** Echo wait before declaring no-echo, microseconds (~400 cm round trip). */
+#define ECHO_TIMEOUT_US 25000UL
 
 /* ---------------------------------------------------------------------------
- * TIMING — REPORT §3.1, §5.2
+ * THRESHOLDS — mirrors src/config/devices.config.ts
+ * OK 0–49 · FILLING 50–79 · FULL 80–100
  * ------------------------------------------------------------------------- */
+#define BAND_OK_MAX      49.0f
+#define BAND_FILLING_MAX 79.0f
+#define ALERT_THRESHOLD  80.0f
 
-/** Transmit interval. REPORT §3.1 — "default: 60 seconds". */
-#define UPLOAD_INTERVAL_MS   60000UL
-
-/** Local sensor read interval — the OLED updates faster than we transmit. */
-#define SENSE_INTERVAL_MS    2000UL
-
-/** Reconnect back-off. REPORT §5.2 item 2 — "initial retry: 1 s, max: 30 s". */
-#define RECONNECT_INITIAL_MS 1000UL
+/* ---------------------------------------------------------------------------
+ * TIMING
+ *
+ * The dashboard marks a device OFFLINE after DEVICE_OFFLINE_TIMEOUT_MS
+ * (50 s by default). UPLOAD_INTERVAL_MS must stay comfortably below that or
+ * a healthy bin will flicker offline between transmissions.
+ * ------------------------------------------------------------------------- */
+#define UPLOAD_INTERVAL_MS   15000UL   // telemetry + heartbeat, every 15 s
+#define SENSE_INTERVAL_MS     2000UL   // local sensing / OLED refresh
+#define RECONNECT_INITIAL_MS  1000UL
 #define RECONNECT_MAX_MS     30000UL
-#define RECONNECT_FACTOR     2
-
-/** Wi-Fi association timeout on boot. */
+#define RECONNECT_FACTOR      2
 #define WIFI_CONNECT_TIMEOUT_MS 20000UL
 
 /* ---------------------------------------------------------------------------
  * INDICATORS
  * ------------------------------------------------------------------------- */
-
-/** Buzzer beep duration when the threshold is first crossed, milliseconds. */
 #define BUZZER_BEEP_MS  180
-
-/** Number of beeps on a threshold breach. */
 #define BUZZER_BEEPS    3
 
 /**
  * Buzzer re-arm interval.
  *
- * Without this a bin sitting at 82% would beep every reading cycle, and the
+ * Without this, a bin sitting at 82 % would beep on every cycle and the
  * buzzer would be disconnected by the end of the first day.
  */
 #define BUZZER_REARM_MS 900000UL   // 15 minutes
@@ -124,8 +158,6 @@
  * DIAGNOSTICS
  * ------------------------------------------------------------------------- */
 #define SERIAL_BAUD     115200
-
-/** Set to 0 to silence serial output in a deployed unit. */
 #define DEBUG_SERIAL    1
 
 #endif  // SMARTBIN_CONFIG_H

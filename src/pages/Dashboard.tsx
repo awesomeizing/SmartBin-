@@ -1,4 +1,5 @@
 import { useDatabase } from '@/contexts/DatabaseContext';
+import { PhysicalFleet } from '@/components/bins/PhysicalFleet';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { KPICard } from '@/components/dashboard/KPICard';
 import { ActivityFeed } from '@/components/dashboard/ActivityFeed';
@@ -130,6 +131,9 @@ export function Dashboard() {
           </Badge>
         </div>
       </div>
+
+      {/* ── The four physical bins — live device state ── */}
+      <PhysicalFleet />
 
       {/* ── 3D Model Status Panel (matches the laptop screen) ── */}
       {fullBin && (

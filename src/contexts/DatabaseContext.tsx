@@ -1,13 +1,28 @@
 import { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { db, IS_DEMO_MODE } from '@/lib/firebase';
 import { ref as dbRef, onValue as dbOnValue, set as dbSet, push as dbPush, remove as dbRemove, update as dbUpdate } from 'firebase/database';
-import { getMockData, toBinSummary } from '@/services/mockData';
+import { getMockData } from '@/services/mockData';
 import type { Bin, BinSummary, Truck, Alert, CollectionEvent, TimelineEvent, DailyAnalytics, ZoneAnalytics, Notification, AppConfig, AppUser, AuditLogEntry, HistoryEntry, KPIData, CollectionRoute } from '@/types';
 import { calculateKPIs } from '@/lib/calculations';
+import { useLiveBins } from '@/hooks/useLiveBins';
+import { isRegisteredBin } from '@/config/devices.config';
+import { liveBinToBin, liveBinToSummary } from '@/lib/binAdapter';
+import type { FleetStats, LiveBinState } from '@/lib/telemetry';
 
 // ── Context Type ───────────────────────────────────────────
 
 interface DatabaseContextType {
+  // ── Physical devices ───────────────────────────────────
+  /**
+   * THE canonical state of the four physical bins. Dashboard, map, alerts,
+   * charts and the detail page all render from this one array.
+   */
+  liveBins: LiveBinState[];
+  /** Fleet statistics derived from `liveBins`. Never hard-coded. */
+  fleetStats: FleetStats;
+  /** Transport error, e.g. Firebase unreachable or permission denied. */
+  deviceError: string | null;
+
   // Data
   bins: Bin[];
   binSummaries: BinSummary[];
@@ -64,7 +79,13 @@ export const useDatabase = () => {
 // ── Provider ───────────────────────────────────────────────
 
 export const DatabaseProvider = ({ children }: { children: React.ReactNode }) => {
-  const [bins, setBins] = useState<Bin[]>([]);
+  // ── Physical devices ─────────────────────────────────────
+  // The four real bins come from the live telemetry layer, never from mock
+  // data. `bins` and `binSummaries` below are PROJECTIONS of this — there is
+  // no second bin dataset anywhere in the app.
+  const { bins: liveBins, stats: fleetStats, loading: binsLoading, error: deviceError } =
+    useLiveBins();
+
   const [trucks, setTrucks] = useState<Truck[]>([]);
   const [routes, setRoutes] = useState<CollectionRoute[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
@@ -83,8 +104,10 @@ export const DatabaseProvider = ({ children }: { children: React.ReactNode }) =>
 
   useEffect(() => {
     if (IS_DEMO_MODE) {
+      // NOTE: mock data no longer supplies BINS — those always come from the
+      // live telemetry layer. What remains here is fleet/analytics scaffolding
+      // (trucks, routes, historical reports) that has no hardware behind it.
       const mock = getMockData();
-      setBins(mock.bins);
       setTrucks(mock.trucks);
       setRoutes(mock.routes || []);
       setAlerts(mock.alerts);
@@ -104,23 +127,9 @@ export const DatabaseProvider = ({ children }: { children: React.ReactNode }) =>
     // Firebase real-time listeners
     const unsubscribers: Array<() => void> = [];
 
-    const binsRef = dbRef(db, 'bins');
-    unsubscribers.push(dbOnValue(binsRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        const binArray = Object.entries(data).map(([id, val]: [string, any]) => ({
-          id,
-          meta: val.meta || {},
-          live: val.live || {},
-          health: val.health || {},
-          reserved: val.reserved || {},
-        })) as Bin[];
-        setBins(binArray);
-      } else {
-        setBins([]);
-      }
-      setLoading(false);
-    }));
+    // Bins are NOT subscribed here — `useLiveBins` owns that subscription so
+    // there is a single listener and a single source of bin state.
+    setLoading(false);
 
     const trucksRef = dbRef(db, 'trucks');
     unsubscribers.push(dbOnValue(trucksRef, (snapshot) => {
@@ -155,7 +164,9 @@ export const DatabaseProvider = ({ children }: { children: React.ReactNode }) =>
 
   // ── Computed Values ──────────────────────────────────────
 
-  const binSummaries = useMemo(() => bins.map(toBinSummary), [bins]);
+  // Projections of the canonical live state for legacy consumers.
+  const bins = useMemo(() => liveBins.map(liveBinToBin), [liveBins]);
+  const binSummaries = useMemo(() => liveBins.map(liveBinToSummary), [liveBins]);
 
   const kpis = useMemo((): KPIData => {
     const base = calculateKPIs(binSummaries);
@@ -166,6 +177,16 @@ export const DatabaseProvider = ({ children }: { children: React.ReactNode }) =>
 
     return {
       ...base,
+      // Bin counts come from the physical fleet, never from a literal.
+      totalBins: fleetStats.total,
+      onlineBins: fleetStats.online,
+      offlineBins: fleetStats.offline + fleetStats.waiting,
+      fullBins: fleetStats.full,
+      warningBins: fleetStats.filling,
+      healthyBins: fleetStats.ok,
+      // Null (no trustworthy readings) surfaces as 0 only in this legacy KPI
+      // shape; views that must not fabricate read fleetStats.avgFillPct.
+      avgFillPct: fleetStats.avgFillPct ?? 0,
       todayCollections: todayCollections.length,
       totalWasteTodayKg: Math.round(todayCollections.reduce((s, c) => s + c.wasteKg, 0)),
       activeTrucks: trucks.filter(t => t.status === 'active' || t.status === 'en_route' || t.status === 'collecting').length,
@@ -179,19 +200,31 @@ export const DatabaseProvider = ({ children }: { children: React.ReactNode }) =>
         ? Math.round(dailyAnalytics.reduce((s, d) => s + d.avgResponseTimeMins, 0) / dailyAnalytics.length)
         : 0,
     };
-  }, [binSummaries, collections, alerts, trucks, dailyAnalytics]);
+  }, [binSummaries, fleetStats, collections, alerts, trucks, dailyAnalytics]);
 
   // ── Actions ──────────────────────────────────────────────
 
+  /**
+   * Provision a new bin record.
+   *
+   * Physical bins are registered in src/config/devices.config.ts; this only
+   * seeds the matching database node.
+   */
   const addBin = useCallback(async (bin: Partial<Bin>) => {
-    if (IS_DEMO_MODE) return;
     const newRef = dbPush(dbRef(db, 'bins'));
     await dbSet(newRef, bin);
   }, []);
 
+  /**
+   * Update a bin's stored record.
+   *
+   * Live telemetry is written by the DEVICE, not from the browser — this is
+   * for metadata (label, surveyed location, threshold). It never fabricates
+   * a reading.
+   */
   const updateBin = useCallback(async (id: string, data: Partial<Bin>) => {
-    if (IS_DEMO_MODE) {
-      setBins(prev => prev.map(b => b.id === id ? { ...b, ...data, live: { ...b.live, ...data.live }, meta: { ...b.meta, ...data.meta }, health: { ...b.health, ...data.health } } : b));
+    if (!isRegisteredBin(id)) {
+      console.warn(`[db] refusing to update unregistered bin "${id}"`);
       return;
     }
     await dbUpdate(dbRef(db, `bins/${id}`), data);
@@ -221,9 +254,19 @@ export const DatabaseProvider = ({ children }: { children: React.ReactNode }) =>
     await dbUpdate(dbRef(db, `routes/${route.id}`), route);
   }, []);
 
+  /**
+   * Remove a bin's stored record.
+   *
+   * The four physical bins are defined in src/config/devices.config.ts and
+   * cannot be deleted from the UI — a bin exists because it is bolted to a
+   * wall, not because a row exists in a database.
+   */
   const deleteBin = useCallback(async (id: string) => {
-    if (IS_DEMO_MODE) {
-      setBins(prev => prev.filter(b => b.id !== id));
+    if (isRegisteredBin(id)) {
+      console.warn(
+        `[db] "${id}" is a registered physical bin — remove it from ` +
+        'src/config/devices.config.ts instead.',
+      );
       return;
     }
     await dbRemove(dbRef(db, `bins/${id}`));
@@ -274,9 +317,10 @@ export const DatabaseProvider = ({ children }: { children: React.ReactNode }) =>
   // ── Value ────────────────────────────────────────────────
 
   const value: DatabaseContextType = {
+    liveBins, fleetStats, deviceError,
     bins, binSummaries, trucks, routes, alerts, notifications, collections,
     timeline, dailyAnalytics, zoneAnalytics, history, config, users, auditLogs, kpis,
-    loading,
+    loading: loading || binsLoading,
     addBin, updateBin, deleteBin, updateTruck, updateRoute, addRoute,
     acknowledgeAlert, resolveAlert,
     markNotificationRead, markAllNotificationsRead, deleteNotification,

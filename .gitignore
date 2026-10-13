@@ -22,3 +22,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Environment — never commit real credentials
+.env
+.env.local
+.env.*.local
+
+# Device credentials (Wi-Fi + Firebase service account) live here
+firmware/smartbin_esp32/config.h

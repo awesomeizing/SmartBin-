@@ -1,117 +1,141 @@
 {
-  "_comment": "SmartBin+ Realtime Database security rules. Satisfies report §3.2 Security: 'Firebase Authentication shall be configured to restrict dashboard access to authorized municipal accounts.' Paste into Firebase Console → Realtime Database → Rules → Publish. Hiding a button in the UI is not security; these rules are the enforcement layer.",
+  "//": [
+    "SmartBin+ — Realtime Database security rules.",
+    "",
+    "These rules ARE the backend validation layer. They run on Google's",
+    "servers and cannot be bypassed by a malicious or malfunctioning device,",
+    "which is why telemetry validation lives here rather than in a serverless",
+    "function the ESP32 could simply skip.",
+    "",
+    "They enforce:",
+    "  · only the device service account may write telemetry",
+    "  · only the four registered bin IDs exist",
+    "  · distanceCm is either null (sensor fault) or a plausible number",
+    "  · timestamp must be the SERVER clock, so a device with a wrong RTC",
+    "    cannot appear permanently online",
+    "  · devices cannot write bin metadata, alerts, users or config",
+    "",
+    "DEPLOY:  Firebase Console -> Realtime Database -> Rules -> paste -> Publish",
+    "",
+    "SETUP:   create an Email/Password user in Authentication for the",
+    "         hardware (e.g. device@smartbin.local), copy its UID from the",
+    "         Users tab, and paste it into DEVICE_UID below."
+  ],
 
   "rules": {
-    ".read": false,
-    ".write": false,
+    "$other": {
+      ".read": false,
+      ".write": false
+    },
 
     "bins": {
       ".read": "auth != null",
 
       "$binId": {
+        ".validate": "$binId === 'BIN-01' || $binId === 'BIN-02' || $binId === 'BIN-03' || $binId === 'BIN-04'",
+
         "meta": {
-          ".write": "root.child('users').child(auth.uid).child('role').val() === 'administrator'",
-          ".validate": "newData.hasChildren(['binId', 'label', 'zone', 'depthCm', 'source'])",
-          "depthCm":      { ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= 400" },
-          "thresholdPct": { ".validate": "newData.isNumber() && newData.val() >= 80 && newData.val() <= 90" },
-          "source":       { ".validate": "newData.val() === 'device' || newData.val() === 'simulated' || newData.val() === 'placeholder'" },
+          "//": "Operators maintain metadata. Devices never write it.",
+          ".write": "auth != null && auth.token.email_verified === true && auth.uid !== 'DEVICE_UID'",
+          ".validate": "newData.hasChildren(['binId', 'label'])",
+          "thresholdPct": {
+            ".validate": "newData.isNumber() && newData.val() >= 50 && newData.val() <= 100"
+          },
           "location": {
-            "lat": { ".validate": "newData.isNumber() && newData.val() >= -90  && newData.val() <= 90" },
+            "lat": { ".validate": "newData.isNumber() && newData.val() >= -90 && newData.val() <= 90" },
             "lng": { ".validate": "newData.isNumber() && newData.val() >= -180 && newData.val() <= 180" }
-          }
+          },
+          "$meta": { ".validate": true }
         },
 
         "live": {
-          "_comment": "Written by the ESP32 (device token) or by an administrator running the Simulation Engine.",
-          ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'administrator' || auth.token.device === true)",
-          ".validate": "newData.hasChildren(['distanceCm', 'fillPct', 'binStatus', 'timestamp'])",
-          "distanceCm":    { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 400" },
-          "fillPct":       { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100" },
-          "binStatus":     { ".validate": "newData.val() === 'Empty' || newData.val() === 'Half' || newData.val() === 'Full'" },
-          "messageStatus": { ".validate": "newData.val() === 'Delivered' || newData.val() === 'Failed'" },
-          "batteryPct":    { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100" },
-          "rssi":          { ".validate": "newData.isNumber() && newData.val() >= -120 && newData.val() <= 0" },
-          "timestamp":     { ".validate": "newData.isNumber()" }
+          "//": "Telemetry. Written ONLY by the device service account.",
+          ".write": "auth != null && auth.uid === 'DEVICE_UID'",
+          ".validate": "newData.hasChildren(['deviceId', 'timestamp'])",
+
+          "deviceId": {
+            "//": "Must be the device registered for THIS bin — a device cannot report for another bin.",
+            ".validate": "newData.isString() && newData.val() === 'ESP32-SMARTBIN-' + $binId.substring(4)"
+          },
+
+          "distanceCm": {
+            "//": "null is legitimate and means a sensor fault. It must never be 0.",
+            ".validate": "newData.val() === null || (newData.isNumber() && newData.val() >= 1 && newData.val() <= 400)"
+          },
+
+          "fillPct": {
+            ".validate": "newData.val() === null || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 100)"
+          },
+
+          "sensorOk": { ".validate": "newData.isBoolean()" },
+
+          "timestamp": {
+            "//": "Server clock only. Blocks a device from faking liveness with a future time.",
+            ".validate": "newData.val() === now"
+          },
+
+          "rssi": { ".validate": "newData.val() === null || (newData.isNumber() && newData.val() >= -120 && newData.val() <= 0)" },
+          "uptimeSec": { ".validate": "newData.val() === null || (newData.isNumber() && newData.val() >= 0)" },
+          "firmware": { ".validate": "newData.val() === null || newData.isString()" },
+
+          "$unknown": { ".validate": false }
         },
 
         "health": {
-          ".write": "auth != null",
-          "healthScore": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100" }
+          ".write": "auth != null && auth.uid === 'DEVICE_UID'",
+          "sensorOk": { ".validate": "newData.isBoolean()" },
+          "wifiOk": { ".validate": "newData.isBoolean()" },
+          "updatedAt": { ".validate": "newData.val() === now || newData.isNumber()" },
+          "$other": { ".validate": true }
         },
 
-        "reserved": {
-          "_comment": "Phase-II sensor placeholders — temperature, humidity, gas. No hardware fitted; written only by the Simulation Engine and always labelled as such in the UI.",
-          ".write": "auth != null"
-        }
+        "$node": { ".validate": false }
       }
     },
 
-    "history": {
+    "logs": {
       ".read": "auth != null",
       "$binId": {
         ".write": "auth != null",
-        ".indexOn": ["timestamp"],
         "$pushId": {
-          ".validate": "newData.hasChildren(['fillPct', 'timestamp'])",
-          "fillPct":   { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100" },
-          "timestamp": { ".validate": "newData.isNumber()" }
+          ".validate": "newData.hasChildren(['type', 'message'])",
+          "type": { ".validate": "newData.isString() && newData.val().length <= 32" },
+          "message": { ".validate": "newData.isString() && newData.val().length <= 512" },
+          "timestamp": { ".validate": "newData.val() === now || newData.isNumber()" },
+          "$other": { ".validate": false }
         }
       }
     },
 
     "alerts": {
+      "//": "Raised and resolved by operators, not by devices.",
       ".read": "auth != null",
-      ".indexOn": ["state", "severity", "raisedAt", "binId"],
+      ".write": "auth != null && auth.uid !== 'DEVICE_UID'",
       "$alertId": {
-        ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() !== 'user'",
-        ".validate": "newData.hasChildren(['binId', 'severity', 'type', 'raisedAt', 'state'])",
-        "severity": { ".validate": "newData.val() === 'critical' || newData.val() === 'warning' || newData.val() === 'info'" },
-        "state":    { ".validate": "newData.val() === 'active' || newData.val() === 'acknowledged' || newData.val() === 'resolved'" },
-        "acknowledgedBy": { ".validate": "newData.val() === auth.uid" }
-      }
-    },
-
-    "events": {
-      "_comment": "Append-only audit trail. Maps to data store D2 'Logs & History' in report §4.3.2. Existing entries cannot be edited or deleted by clients.",
-      ".read": "auth != null",
-      ".indexOn": ["timestamp", "kind", "binId"],
-      "$eventId": {
-        ".write": "auth != null && !data.exists()",
-        ".validate": "newData.hasChildren(['kind', 'timestamp'])",
-        "timestamp": { ".validate": "newData.isNumber()" }
+        ".validate": "newData.hasChildren(['binId', 'type', 'state'])",
+        "state": { ".validate": "newData.val() === 'active' || newData.val() === 'acknowledged' || newData.val() === 'resolved'" }
       }
     },
 
     "trucks": {
       ".read": "auth != null",
-      "$truckId": {
-        ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() !== 'user'"
-      }
+      ".write": "auth != null && auth.uid !== 'DEVICE_UID'"
     },
 
     "routes": {
       ".read": "auth != null",
-      ".indexOn": ["createdAt"],
-      "$routeId": {
-        ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() !== 'user'"
-      }
+      ".write": "auth != null && auth.uid !== 'DEVICE_UID'"
     },
 
     "config": {
       ".read": "auth != null",
-      ".write": "root.child('users').child(auth.uid).child('role').val() === 'administrator'",
-      "defaultThresholdPct": { ".validate": "newData.isNumber() && newData.val() >= 80 && newData.val() <= 90" },
-      "pollIntervalSec":     { ".validate": "newData.isNumber() && newData.val() >= 10 && newData.val() <= 3600" },
-      "simulationMode":      { ".validate": "newData.isBoolean()" }
+      ".write": "auth != null && auth.uid !== 'DEVICE_UID'"
     },
 
     "users": {
       "$uid": {
-        ".read": "auth.uid === $uid || root.child('users').child(auth.uid).child('role').val() === 'administrator'",
-        ".write": "root.child('users').child(auth.uid).child('role').val() === 'administrator'",
-        "role": {
-          ".validate": "newData.val() === 'user' || newData.val() === 'municipality' || newData.val() === 'administrator'"
-        }
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid"
       }
     }
   }

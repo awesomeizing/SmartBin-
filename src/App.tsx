@@ -17,6 +17,7 @@ import { Reports } from '@/pages/Reports';
 import { Admin } from '@/pages/Admin';
 import { HardwareDashboard } from '@/pages/HardwareDashboard';
 import { DeviceDetails } from '@/pages/DeviceDetails';
+import { DeviceTestHarness } from '@/pages/DeviceTestHarness';
 
 function App() {
   return (
@@ -37,6 +38,7 @@ function App() {
         <Route path="/reports" element={<Reports />} />
         <Route path="/admin" element={<Admin />} />
         <Route path="/hardware" element={<HardwareDashboard />} />
+        <Route path="/hardware/test" element={<DeviceTestHarness />} />
         <Route path="/hardware/:id" element={<DeviceDetails />} />
         <Route path="/settings" element={<Settings />} />
       </Route>
