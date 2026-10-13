@@ -134,7 +134,16 @@
  * a healthy bin will flicker offline between transmissions.
  * ------------------------------------------------------------------------- */
 #define UPLOAD_INTERVAL_MS   15000UL   // telemetry + heartbeat, every 15 s
-#define SENSE_INTERVAL_MS     2000UL   // local sensing / OLED refresh
+#define SENSE_INTERVAL_MS     2000UL   // ultrasonic sampling
+
+/**
+ * OLED redraw interval.
+ *
+ * Much faster than sensing, because the faces blink, the waste level ripples
+ * and the FULL banner flashes. Four 1 KB frames at 400 kHz take roughly
+ * 100 ms, so 200 ms leaves headroom.
+ */
+#define DISPLAY_INTERVAL_MS    200UL
 #define RECONNECT_INITIAL_MS  1000UL
 #define RECONNECT_MAX_MS     30000UL
 #define RECONNECT_FACTOR      2

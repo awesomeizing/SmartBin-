@@ -46,8 +46,9 @@
 
 static const char* const DEVICE_IDS_ARR[BIN_COUNT] = BIN_DEVICE_IDS;
 
-static unsigned long lastSense  = 0;
-static unsigned long lastUpload = 0;
+static unsigned long lastSense   = 0;
+static unsigned long lastDraw    = 0;
+static unsigned long lastUpload  = 0;
 
 // ─────────────────────────────────────────────────────────────
 
@@ -92,6 +93,13 @@ void loop() {
     senseAllBins();
     updateLeds();
     updateBuzzer();
+  }
+
+  // ── Redraw ─────────────────────────────────────────────
+  // Faster than sensing: the faces blink, the level ripples and the FULL
+  // banner flashes, none of which can animate at the sensing rate.
+  if (now - lastDraw >= DISPLAY_INTERVAL_MS) {
+    lastDraw = now;
     updateDisplays(cloudWiFiConnected());
   }
 

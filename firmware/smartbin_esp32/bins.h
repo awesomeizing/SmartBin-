@@ -225,57 +225,116 @@ inline const char* statusWord(uint8_t status) {
   }
 }
 
-/** Draw one bin's OLED. Assumes its mux channel is already selected. */
+/**
+ * Draw one bin's OLED: bin icon with an animated waste level, the
+ * percentage, and a mascot face whose expression tracks the fill band.
+ *
+ * Assumes this bin's mux channel is already selected.
+ *
+ * The face states mirror STATUS_FACE in src/lib/telemetry.ts, so the
+ * physical bin and the website never disagree about how a bin is doing.
+ */
 inline void drawBin(uint8_t index, bool online) {
-  oled.clearDisplay();
+  bool  ok      = bins[index].sensorOk;
+  float pct     = bins[index].fillPct;
+  bool  full    = ok && pct >= ALERT_THRESHOLD;
+  bool  worried = ok && pct > BAND_OK_MAX && pct < ALERT_THRESHOLD;
 
-  oled.setTextSize(1);
-  oled.setTextColor(SSD1306_WHITE);
-  oled.setCursor(0, 0);
-  oled.print(BIN_LABEL[index]);
+  unsigned long t = millis();
 
-  // Link state, top right — the device says the same thing as the website.
-  oled.setCursor(92, 0);
-  oled.print(online ? "WIFI" : "----");
+  display.clearDisplay();
 
-  oled.drawLine(0, 10, 127, 10, SSD1306_WHITE);
+  // ── Header ────────────────────────────────────────────
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(0, 0);
+  display.print(F("BIN "));
+  display.print(index + 1);
 
-  if (bins[index].status == ST_FAULT) {
-    oled.setTextSize(2);
-    oled.setCursor(0, 22);
-    oled.print("SENSOR");
-    oled.setCursor(0, 42);
-    oled.print("ERROR");
-    oled.display();
-    return;
+  // Link state, top right. The device says what the website says.
+  display.setCursor(96, 0);
+  display.print(online ? F("WIFI") : F("----"));
+
+  display.drawLine(0, 9, 127, 9, SSD1306_WHITE);
+
+  // ── Bin icon with animated level, left ────────────────
+  const int binX = 6, binY = 16, binW = 22, binH = 40;
+  display.drawRect(binX, binY, binW, binH, SSD1306_WHITE);
+  display.fillRect(binX - 3, binY - 4, binW + 6, 4, SSD1306_WHITE);  // lid
+
+  if (ok) {
+    int fillH = (int)((pct / 100.0f) * (binH - 4));
+    int topY  = binY + binH - 2 - fillH;
+    for (int x = binX + 2; x < binX + binW - 2; x++) {
+      int wave = (int)(2 * sin((x + t / 80.0f) * 0.4f));
+      int yv   = constrain(topY + wave, binY + 2, binY + binH - 2);
+      display.drawFastVLine(x, yv, (binY + binH - 2) - yv, SSD1306_WHITE);
+    }
   }
 
-  // Percentage, large
-  oled.setTextSize(3);
-  oled.setCursor(0, 20);
-  oled.print((int)round(bins[index].fillPct));
-  oled.print("%");
+  // ── Percentage, middle ────────────────────────────────
+  display.setTextSize(2);
+  display.setCursor(40, 25);
+  if (ok) {
+    display.print((int)round(pct));
+    display.print(F("%"));
+  } else {
+    display.print(F("ERR"));
+  }
 
-  // Face
-  oled.setTextSize(2);
-  oled.setCursor(96, 24);
-  oled.print(statusFace(bins[index].status));
+  display.setTextSize(1);
+  display.setCursor(40, 45);
+  if (!ok)          display.print(F("Sensor err"));
+  else if (full)    display.print(F("FULL!"));
+  else if (worried) display.print(F("Filling.."));
+  else              display.print(F("OK"));
 
-  // Status word and raw distance
-  oled.setTextSize(1);
-  oled.setCursor(0, 48);
-  oled.print(statusWord(bins[index].status));
+  // ── Mascot face, right ────────────────────────────────
+  int fx = 105, fy = 32;
+  if (full) fx += ((t / 100) % 2 == 0) ? 1 : -1;   // agitated shake
 
-  oled.setCursor(80, 48);
-  oled.print(bins[index].distanceCm, 1);
-  oled.print("cm");
+  display.drawCircle(fx, fy, 12, SSD1306_WHITE);
 
-  // Fill bar
-  oled.drawRect(0, 58, 128, 6, SSD1306_WHITE);
-  int w = (int)((bins[index].fillPct / 100.0f) * 126.0f);
-  if (w > 0) oled.fillRect(1, 59, w, 4, SSD1306_WHITE);
+  if (!ok) {
+    // Flat line: nothing to report.
+    display.drawFastHLine(fx - 6, fy, 12, SSD1306_WHITE);
+  } else if (full) {
+    // X eyes, open mouth, sweat drop.
+    display.drawLine(fx - 6, fy - 3, fx - 2, fy + 1, SSD1306_WHITE);
+    display.drawLine(fx - 2, fy - 3, fx - 6, fy + 1, SSD1306_WHITE);
+    display.drawLine(fx + 2, fy - 3, fx + 6, fy + 1, SSD1306_WHITE);
+    display.drawLine(fx + 6, fy - 3, fx + 2, fy + 1, SSD1306_WHITE);
+    display.drawCircle(fx, fy + 6, 2, SSD1306_WHITE);
+    display.fillCircle(fx + 15, fy - 6, 2, SSD1306_WHITE);
+  } else if (worried) {
+    // Flat mouth and a falling bead of sweat.
+    display.fillCircle(fx - 4, fy - 2, 1, SSD1306_WHITE);
+    display.fillCircle(fx + 4, fy - 2, 1, SSD1306_WHITE);
+    display.drawFastHLine(fx - 4, fy + 5, 8, SSD1306_WHITE);
+    display.fillCircle(fx + 11, fy - 8 + (t / 100) % 10, 1, SSD1306_WHITE);
+  } else {
+    // Content, with an occasional blink.
+    if ((t % 3000) < 150) {
+      display.drawFastHLine(fx - 5, fy - 2, 3, SSD1306_WHITE);
+      display.drawFastHLine(fx + 2, fy - 2, 3, SSD1306_WHITE);
+    } else {
+      display.fillCircle(fx - 4, fy - 2, 1, SSD1306_WHITE);
+      display.fillCircle(fx + 4, fy - 2, 1, SSD1306_WHITE);
+    }
+    display.drawLine(fx - 4, fy + 4, fx,     fy + 6, SSD1306_WHITE);
+    display.drawLine(fx,     fy + 6, fx + 4, fy + 4, SSD1306_WHITE);
+  }
 
-  oled.display();
+  // ── Flashing collection banner ────────────────────────
+  if (full && (t / 250) % 2 == 0) {
+    display.fillRect(0, 56, 128, 8, SSD1306_WHITE);
+    display.setTextColor(SSD1306_BLACK);
+    display.setCursor(15, 57);
+    display.print(F("EMPTY ME NOW!"));
+    display.setTextColor(SSD1306_WHITE);
+  }
+
+  display.display();
 }
 
 /** Refresh all four displays, one mux channel at a time. */
@@ -310,17 +369,31 @@ inline void binsBegin() {
   digitalWrite(PIN_BUZZER, LOW);
 
   Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL);
+  // Four 1 KB frames per refresh — the 100 kHz default cannot keep up
+  // with the animation.
+  Wire.setClock(400000);
 
   // Each display is initialised on its own mux channel.
   for (uint8_t i = 0; i < BIN_COUNT; i++) {
     muxSelect(OLED_CH[i]);
     if (!oled.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR)) {
 #if DEBUG_SERIAL
-      Serial.print(F("[oled] init failed on channel "));
-      Serial.println(OLED_CH[i]);
+      // Say which bin AND which channel, so a miswired display is obvious
+      // from the boot log without probing anything.
+      Serial.print(F("[oled] "));
+      Serial.print(BIN_LABEL[i]);
+      Serial.print(F(" NOT FOUND on mux channel "));
+      Serial.print(OLED_CH[i]);
+      Serial.println(F("  <- check wiring or OLED_CHANNELS in config.h"));
 #endif
       continue;
     }
+#if DEBUG_SERIAL
+    Serial.print(F("[oled] "));
+    Serial.print(BIN_LABEL[i]);
+    Serial.print(F(" OK on mux channel "));
+    Serial.println(OLED_CH[i]);
+#endif
     oled.clearDisplay();
     oled.setTextSize(1);
     oled.setTextColor(SSD1306_WHITE);
