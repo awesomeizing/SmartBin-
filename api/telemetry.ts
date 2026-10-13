@@ -6,12 +6,7 @@ const EMPTY_DISTANCE_CM = 11;
 const FULL_DISTANCE_CM = 3;
 const OFFLINE_AFTER_MS = 180_000;
 const BIN_IDS = new Set(['BIN-01', 'BIN-02', 'BIN-03', 'BIN-04']);
-const DEVICE_TO_BIN: Record<string, string> = {
-  'ESP32-SMARTBIN-01': 'BIN-01',
-  'ESP32-SMARTBIN-02': 'BIN-02',
-  'ESP32-SMARTBIN-03': 'BIN-03',
-  'ESP32-SMARTBIN-04': 'BIN-04',
-};
+const CONTROLLER_DEVICE_IDS = new Set(['ESP32-SMARTBIN-01', 'ESP32-SMARTBIN-02', 'ESP32-SMARTBIN-03', 'ESP32-SMARTBIN-04']);
 
 function getDb() {
   if (!getApps().length) {
@@ -20,12 +15,6 @@ function getDb() {
     initializeApp({ credential: cert(JSON.parse(serviceAccount)), databaseURL: process.env.FIREBASE_DATABASE_URL });
   }
   return getDatabase();
-}
-
-function authorized(req: VercelRequest, deviceId: string) {
-  const provided = String(req.headers['x-device-key'] || '');
-  const expected = process.env.IOT_DEVICE_API_KEY || '';
-  return Boolean(expected && provided && provided === expected && DEVICE_TO_BIN[deviceId]);
 }
 
 function fillFromDistance(distanceCm: number) {
@@ -44,11 +33,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body || {};
     const deviceId = String(body.deviceId || '');
-    const binId = String(body.binId || DEVICE_TO_BIN[deviceId] || '');
+    const binId = String(body.binId || '');
     const distanceCm = Number(body.distanceCm);
+    const providedKey = String(req.headers['x-device-key'] || '');
+    const expectedKey = process.env.IOT_DEVICE_API_KEY || '';
 
-    if (!authorized(req, deviceId)) return res.status(401).json({ ok: false, error: 'Unauthorized device' });
-    if (!BIN_IDS.has(binId) || DEVICE_TO_BIN[deviceId] !== binId) return res.status(400).json({ ok: false, error: 'Invalid device/bin mapping' });
+    if (!expectedKey || !providedKey || providedKey !== expectedKey || !CONTROLLER_DEVICE_IDS.has(deviceId)) return res.status(401).json({ ok: false, error: 'Unauthorized device' });
+    if (!BIN_IDS.has(binId)) return res.status(400).json({ ok: false, error: 'Invalid binId' });
     if (!Number.isFinite(distanceCm) || distanceCm < 0 || distanceCm > 400) return res.status(400).json({ ok: false, error: 'Invalid distanceCm' });
 
     const now = Date.now();
@@ -60,43 +51,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const wasFull = Number(previous?.live?.fillPct || 0) >= 80;
 
     const live = {
-      ...(previous.live || {}),
-      distanceCm,
-      fillPct,
-      binStatus: status,
-      messageStatus: 'Delivered',
+      ...(previous.live || {}), distanceCm, fillPct, binStatus: status, messageStatus: 'Delivered',
       rssi: Number.isFinite(Number(body.rssi)) ? Number(body.rssi) : Number(previous?.live?.rssi || 0),
       batteryPct: Number.isFinite(Number(body.batteryPct)) ? Number(body.batteryPct) : Number(previous?.live?.batteryPct || 0),
       uptimeSec: Number.isFinite(Number(body.uptimeSec)) ? Number(body.uptimeSec) : Number(previous?.live?.uptimeSec || 0),
-      firmware: String(body.firmware || previous?.live?.firmware || 'unknown'),
-      timestamp: now,
+      firmware: String(body.firmware || previous?.live?.firmware || 'unknown'), timestamp: now,
     };
 
-    await base.update({
-      meta: { ...(previous.meta || {}), binId, deviceId, depthCm: EMPTY_DISTANCE_CM, thresholdPct: 80, source: 'device' },
-      live,
-      health: { ...(previous.health || {}), sensorOk: true, wifiOk: true, healthScore: 100 },
-      lastSeen: now,
-    });
-
+    await base.update({ meta: { ...(previous.meta || {}), binId, deviceId, depthCm: EMPTY_DISTANCE_CM, thresholdPct: 80, source: 'device' }, live, health: { ...(previous.health || {}), sensorOk: true, wifiOk: true, healthScore: 100 }, lastSeen: now });
     await db.ref(`history/${binId}`).push({ fillPct, distanceCm, binStatus: status, timestamp: now });
-    await db.ref(`devices/${deviceId}`).set({ binId, online: true, lastSeen: now });
+    await db.ref(`devices/${deviceId}`).update({ online: true, lastSeen: now, bins: { ...(previous?.devices || {}), [binId]: true } });
 
-    if (fillPct >= 80 && !wasFull) {
-      await db.ref('alerts').push({
-        binId,
-        binLabel: `Smart Bin ${binId.slice(-2)}`,
-        severity: 'critical',
-        type: 'bin_full',
-        message: `${binId} has reached ${fillPct}% — collection required`,
-        raisedAt: now,
-        acknowledgedBy: null,
-        acknowledgedAt: null,
-        resolvedAt: null,
-        state: 'active',
-      });
-    }
-
+    if (fillPct >= 80 && !wasFull) await db.ref('alerts').push({ binId, binLabel: `Smart Bin ${binId.slice(-2)}`, severity: 'critical', type: 'bin_full', message: `${binId} has reached ${fillPct}% — collection required`, raisedAt: now, acknowledgedBy: null, acknowledgedAt: null, resolvedAt: null, state: 'active' });
     return res.status(200).json({ ok: true, binId, deviceId, distanceCm, fillPct, status, lastSeen: now, offlineAfterMs: OFFLINE_AFTER_MS });
   } catch (error) {
     console.error(error);
