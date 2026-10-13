@@ -1,22 +1,8 @@
-// ─────────────────────────────────────────────────────────────
-// SmartBin+ Domain Types
-// Every entity in the system is typed here.
-// ─────────────────────────────────────────────────────────────
-
-// ── Enums ──────────────────────────────────────────────────
-
+// SmartBin+ domain types
 export type BinStatus = 'Empty' | 'Half' | 'Full';
 export type AlertSeverity = 'critical' | 'warning' | 'info';
 export type AlertState = 'active' | 'acknowledged' | 'resolved';
-export type AlertType =
-  | 'bin_full'
-  | 'sensor_offline'
-  | 'battery_low'
-  | 'truck_assigned'
-  | 'collection_completed'
-  | 'sensor_fault'
-  | 'temperature_high'
-  | 'overflow';
+export type AlertType = 'bin_full' | 'sensor_offline' | 'battery_low' | 'truck_assigned' | 'collection_completed' | 'sensor_fault' | 'temperature_high' | 'overflow';
 export type UserRole = 'administrator' | 'municipality' | 'user';
 export type DataSource = 'device' | 'simulated' | 'placeholder';
 export type ConnectionState = 'online' | 'degraded' | 'offline' | 'reconnecting';

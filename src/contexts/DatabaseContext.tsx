@@ -1,7 +1,9 @@
 import { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
-import { db, IS_DEMO_MODE } from '@/lib/firebase';
+import { db, IS_DEMO_MODE, IS_FIREBASE_CONFIGURED } from '@/lib/firebase';
 import { ref as dbRef, onValue as dbOnValue, set as dbSet, push as dbPush, remove as dbRemove, update as dbUpdate } from 'firebase/database';
-import { getMockData, toBinSummary } from '@/services/mockData';
+import { getMockData } from '@/services/mockData';
+import { HARDWARE_BINS, IOT_CONFIG } from '@/constants/hardware';
+import { calculateFillFromCalibration, calculateKPIs, getBinStatus } from '@/lib/calculations';
 import type { Bin, BinSummary, Truck, Alert, CollectionEvent, TimelineEvent, DailyAnalytics, ZoneAnalytics, Notification, AppConfig, AppUser, AuditLogEntry, HistoryEntry, KPIData, CollectionRoute } from '@/types';
 import { calculateKPIs } from '@/lib/calculations';
 import { SENSOR_TIMEOUT_MS, normalizeBinId } from '@/constants/hardware';
@@ -56,7 +58,9 @@ interface DatabaseContextType {
   getHistoryForBin: (binId: string) => HistoryEntry[];
 }
 
+interface DatabaseContextType { bins: Bin[]; binSummaries: BinSummary[]; trucks: Truck[]; routes: CollectionRoute[]; alerts: Alert[]; notifications: Notification[]; collections: CollectionEvent[]; timeline: TimelineEvent[]; dailyAnalytics: DailyAnalytics[]; zoneAnalytics: ZoneAnalytics[]; history: Record<string, HistoryEntry[]>; config: AppConfig; users: AppUser[]; auditLogs: AuditLogEntry[]; kpis: KPIData; loading: boolean; addBin:(bin:Partial<Bin>)=>Promise<void>; updateBin:(id:string,data:Partial<Bin>)=>Promise<void>; deleteBin:(id:string)=>Promise<void>; updateTruck:(id:string,data:Partial<Truck>)=>Promise<void>; updateRoute:(id:string,data:Partial<CollectionRoute>)=>Promise<void>; addRoute:(route:CollectionRoute)=>Promise<void>; acknowledgeAlert:(id:string)=>Promise<void>; resolveAlert:(id:string)=>Promise<void>; markNotificationRead:(id:string)=>void; markAllNotificationsRead:()=>void; deleteNotification:(id:string)=>void; getTodayCollections:()=>CollectionEvent[]; getBinById:(id:string)=>Bin|undefined; getHistoryForBin:(id:string)=>HistoryEntry[]; }
 const DatabaseContext = createContext<DatabaseContextType | null>(null);
+export const useDatabase = () => { const context = useContext(DatabaseContext); if (!context) throw new Error('useDatabase must be used within a DatabaseProvider'); return context; };
 
 export const useDatabase = () => {
   const context = useContext(DatabaseContext);

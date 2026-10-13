@@ -1,8 +1,3 @@
-// ─────────────────────────────────────────────────────────────
-// SmartBin+ Constants & Configuration
-// Single source of truth for all magic numbers, enums, and config values.
-// ─────────────────────────────────────────────────────────────
-
 import type { AlertSeverity, BinStatus } from '@/types';
 
 // ── Fill Level Bands (report §3.1) ─────────────────────────

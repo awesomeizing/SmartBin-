@@ -1,14 +1,5 @@
-
 import { createContext, useContext, useEffect, useState } from 'react';
-import { 
-  type User, 
-  onAuthStateChanged, 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword,
-  sendPasswordResetEmail,
-  updateProfile,
-  signOut 
-} from 'firebase/auth';
+import { type User, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, updateProfile, signOut } from 'firebase/auth';
 import { ref as dbRef, set as dbSet } from 'firebase/database';
 import { auth, db, IS_DEMO_MODE } from '@/lib/firebase';
 

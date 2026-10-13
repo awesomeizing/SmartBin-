@@ -1,0 +1,9 @@
+{
+  "rules": {
+    ".read": "auth != null",
+    ".write": "auth != null",
+    "bins": { ".indexOn": ["meta/deviceId", "live/timestamp"] },
+    "devices": { ".indexOn": ["lastSeen", "binId"] },
+    "history": { "$binId": { ".indexOn": ["timestamp"] } }
+  }
+}
