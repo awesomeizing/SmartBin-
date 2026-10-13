@@ -1,7 +1,7 @@
 {
-  "name": "temp-vite",
+  "name": "smartbin-iot",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -13,6 +13,7 @@
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",
     "firebase": "^12.16.0",
+    "firebase-admin": "^13.5.0",
     "leaflet": "^1.9.4",
     "lucide-react": "^1.27.0",
     "react": "^19.2.7",
