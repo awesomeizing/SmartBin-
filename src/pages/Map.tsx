@@ -145,8 +145,8 @@ export function MapView() {
           </div>
 
           {mapMode === '3d' ? (
-            <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center bg-[#c6d8dc] text-xs font-mono text-zinc-700">Building the campus model…</div>}>
-              <CityScene3D bins={binsWithCoords} routes={routes} trucks={trucks} onSelectBin={setSelectedBin} />
+            <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center bg-zinc-950 text-xs font-mono text-zinc-300">Building the campus model…</div>}>
+              <CityScene3D bins={filtered} routes={routes} trucks={trucks} onSelectBin={setSelectedBin} />
             </Suspense>
           ) : <MapContainer center={position} zoom={MAP_CONFIG.ZOOM} style={{ height: '100%', width: '100%', backgroundColor: '#000' }}>
             <TileLayer url={MAP_CONFIG.TILE_URL} attribution={MAP_CONFIG.TILE_ATTRIBUTION} />
