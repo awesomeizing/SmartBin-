@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { lazy, Suspense, useMemo, useState } from 'react';
 import { useDatabase } from '@/contexts/DatabaseContext';
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
 import L from 'leaflet';
@@ -10,8 +10,9 @@ import { ProgressBar } from '@/components/ui/progress';
 import { formatRelativeTime, formatSignal, formatTemperature, formatHumidity } from '@/lib/formatters';
 import { getFillColor } from '@/lib/calculations';
 import { MAP_CONFIG } from '@/constants';
-import { Search, X, MapPin, Battery, Wifi, Thermometer, Droplets, Clock, Navigation } from 'lucide-react';
+import { Search, X, MapPin, Battery, Wifi, Thermometer, Droplets, Clock, Navigation, Box, Map as MapIcon } from 'lucide-react';
 import type { BinSummary, RouteStop } from '@/types';
+const CityScene3D = lazy(() => import('@/components/map/CityScene3D').then(module => ({ default: module.CityScene3D })));
 
 // Fix Leaflet's default icon path issues in Vite
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -68,6 +69,7 @@ export function MapView() {
   const [search, setSearch] = useState('');
   const [selectedBin, setSelectedBin] = useState<BinSummary | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [mapMode, setMapMode] = useState<'3d' | '2d'>('3d');
 
   const filtered = useMemo(() => {
     return binSummaries.filter(bin => {
@@ -117,11 +119,11 @@ export function MapView() {
       </div>
 
       {/* Map + Panel Layout */}
-      <div className="flex-1 flex gap-4 min-h-[500px]">
+      <div className="relative flex-1 flex gap-4 min-h-[500px]">
         {/* Map */}
         <div className="flex-1 bg-white/[0.01] border border-white/[0.05] rounded-2xl overflow-hidden relative shadow-2xl shadow-black/50">
           {/* Search overlay */}
-          <div className="absolute top-4 left-4 z-[1000] w-72">
+          <div className="absolute left-4 right-4 top-16 z-[1000] sm:left-4 sm:right-auto sm:top-4 sm:w-72">
             <div className="relative">
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-zinc-500" />
               <input
@@ -133,7 +135,20 @@ export function MapView() {
             </div>
           </div>
 
-          <MapContainer center={position} zoom={MAP_CONFIG.ZOOM} style={{ height: '100%', width: '100%', backgroundColor: '#000' }}>
+          <div className="absolute top-4 right-4 z-[1000] flex items-center gap-1 rounded-xl border border-white/10 bg-zinc-950/85 p-1 shadow-xl backdrop-blur-xl">
+            <button onClick={() => setMapMode('3d')} aria-pressed={mapMode === '3d'} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs transition-colors ${mapMode === '3d' ? 'bg-white text-zinc-950' : 'text-zinc-400 hover:text-white'}`}>
+              <Box className="h-3.5 w-3.5" /> 3D City
+            </button>
+            <button onClick={() => setMapMode('2d')} aria-pressed={mapMode === '2d'} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs transition-colors ${mapMode === '2d' ? 'bg-white text-zinc-950' : 'text-zinc-400 hover:text-white'}`}>
+              <MapIcon className="h-3.5 w-3.5" /> 2D Map
+            </button>
+          </div>
+
+          {mapMode === '3d' ? (
+            <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center bg-[#c6d8dc] text-xs font-mono text-zinc-700">Building the campus model…</div>}>
+              <CityScene3D bins={binsWithCoords} routes={routes} trucks={trucks} onSelectBin={setSelectedBin} />
+            </Suspense>
+          ) : <MapContainer center={position} zoom={MAP_CONFIG.ZOOM} style={{ height: '100%', width: '100%', backgroundColor: '#000' }}>
             <TileLayer url={MAP_CONFIG.TILE_URL} attribution={MAP_CONFIG.TILE_ATTRIBUTION} />
 
             {/* Live mode: warn if physical bin locations have not been configured */}
@@ -230,12 +245,12 @@ export function MapView() {
                 </Popup>
               </Marker>
             ))}
-          </MapContainer>
+          </MapContainer>}
         </div>
 
         {/* Detail Panel */}
         {selectedBin && (
-          <div className="w-80 shrink-0 hidden lg:block">
+            <div className="absolute bottom-4 left-4 right-4 z-[1002] max-h-[calc(100%-2rem)] overflow-auto lg:relative lg:inset-auto lg:z-auto lg:max-h-none lg:w-80 lg:shrink-0">
             <Card className="bg-white/[0.01] border-white/[0.05] h-full">
               <CardContent className="p-5">
                 {/* Close */}
