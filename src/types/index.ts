@@ -49,20 +49,20 @@ export interface BinLive {
   fillPct: number;
   binStatus: BinStatus;
   messageStatus: MessageStatus;
-  rssi: number;
-  batteryPct: number;
-  uptimeSec: number;
+  rssi: number | null;
+  batteryPct: number | null;
+  uptimeSec: number | null;
   firmware: string;
   timestamp: number;
 }
 
 export interface BinHealth {
-  sensorOk: boolean;
-  wifiOk: boolean;
-  ledOk: boolean;
-  buzzerOk: boolean;
-  oledOk: boolean;
-  healthScore: number;
+  sensorOk: boolean | null;
+  wifiOk: boolean | null;
+  ledOk: boolean | null;
+  buzzerOk: boolean | null;
+  oledOk: boolean | null;
+  healthScore: number | null;
   lastMaintenance: number | null;
 }
 
@@ -91,14 +91,15 @@ export interface BinSummary {
   fillPct: number;
   distanceCm: number;
   binStatus: BinStatus;
-  batteryPct: number;
-  rssi: number;
+  batteryPct: number | null;
+  rssi: number | null;
+  firmware: string | null;
   source: DataSource;
   lastUpdate: number;
   isOnline: boolean;
   temperatureC: number | null;
   humidityPct: number | null;
-  healthScore: number;
+  healthScore: number | null;
   thresholdPct: number;
 }
 
@@ -337,7 +338,7 @@ export interface KPIData {
   healthyBins: number;
   todayCollections: number;
   avgFillPct: number;
-  avgBatteryPct: number;
+  avgBatteryPct: number | null;
   totalWasteTodayKg: number;
   activeTrucks: number;
   activeAlerts: number;

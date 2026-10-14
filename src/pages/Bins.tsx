@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 import { useDatabase } from '@/contexts/DatabaseContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,7 +11,8 @@ import { SkeletonRow } from '@/components/ui/skeleton';
 import { Modal, ModalBody } from '@/components/ui/modal';
 import { SimulationBanner } from '@/components/dashboard/SimulationBanner';
 import { formatRelativeTime, formatSignal, formatTemperature, formatHumidity } from '@/lib/formatters';
-import { Search, Plus, Trash2, Activity, Eye, MapPin, Battery, Wifi, Thermometer, Ruler } from 'lucide-react';
+import { useToast } from '@/contexts/NotificationContext';
+import { Search, Plus, Download, Trash2, Activity, Eye, MapPin, Battery, Wifi, Thermometer, Ruler } from 'lucide-react';
 import type { BinSummary } from '@/types';
 
 // Map bin ID to device ID (production controller IDs)
@@ -23,9 +25,44 @@ const BIN_DEVICE_MAP: Record<string, string> = {
 
 export function Bins() {
   const { binSummaries, loading, deleteBin, isSimulationMode } = useDatabase();
+  const { currentUser } = useAuth();
+  const { addToast } = useToast();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedBin, setSelectedBin] = useState<BinSummary | null>(null);
+  const [exporting, setExporting] = useState(false);
+
+  const exportTelemetry = async () => {
+    if (!currentUser || isSimulationMode) return;
+    setExporting(true);
+    try {
+      const token = await currentUser.getIdToken();
+      const response = await fetch('/api/export', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) {
+        const result = await response.json().catch(() => ({}));
+        throw new Error(result.error || 'Could not download telemetry data.');
+      }
+      const objectUrl = URL.createObjectURL(await response.blob());
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = 'smartbin-telemetry.csv';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(objectUrl);
+      addToast({ title: 'Telemetry downloaded', message: 'The CSV includes current bin readings and saved history.', severity: 'info' });
+    } catch (error) {
+      addToast({
+        title: 'Download failed',
+        message: error instanceof Error ? error.message : 'Could not download telemetry data.',
+        severity: 'warning',
+      });
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const filtered = useMemo(() => {
     return binSummaries.filter(bin => {
@@ -63,9 +100,20 @@ export function Bins() {
           <h1 className="text-2xl font-display font-medium tracking-tight">Bin Fleet</h1>
           <p className="text-zinc-500 text-sm mt-1">Monitor {binSummaries.length} deployed hardware units — {binSummaries.filter(b => b.isOnline).length} online.</p>
         </div>
-        <Button className="shrink-0 rounded-full px-6 shadow-xl shadow-white/5">
-          <Plus className="w-4 h-4 mr-2" /> Provision Unit
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            className="shrink-0 rounded-full px-5"
+            onClick={exportTelemetry}
+            disabled={exporting || isSimulationMode || !currentUser}
+            title={isSimulationMode ? 'Connect Firebase to export real telemetry.' : undefined}
+          >
+            <Download className="w-4 h-4 mr-2" /> {exporting ? 'Preparing…' : 'Export telemetry CSV'}
+          </Button>
+          <Button className="shrink-0 rounded-full px-6 shadow-xl shadow-white/5">
+            <Plus className="w-4 h-4 mr-2" /> Provision Unit
+          </Button>
+        </div>
       </div>
 
       {/* Search & Filters */}
@@ -189,11 +237,11 @@ export function Bins() {
                 { label: 'Device ID', value: BIN_DEVICE_MAP[selectedBin.id] || '—', icon: Wifi },
                 { label: 'Fill Level', value: selectedBin.isOnline ? `${selectedBin.fillPct}%` : '--', icon: Activity },
                 { label: 'Distance', value: selectedBin.isOnline ? `${selectedBin.distanceCm.toFixed(1)} cm` : '--', icon: Activity },
-                { label: 'Battery', value: `${selectedBin.batteryPct}%`, icon: Battery },
+                { label: 'Battery', value: selectedBin.batteryPct === null ? '—' : `${selectedBin.batteryPct}%`, icon: Battery },
                 { label: 'Signal', value: formatSignal(selectedBin.rssi), icon: Wifi },
                 { label: 'Temperature', value: formatTemperature(selectedBin.temperatureC), icon: Thermometer },
                 { label: 'Humidity', value: formatHumidity(selectedBin.humidityPct), icon: Activity },
-                { label: 'Health Score', value: `${selectedBin.healthScore}/100`, icon: Activity },
+                { label: 'Health Score', value: selectedBin.healthScore === null ? 'Not reported' : `${selectedBin.healthScore}/100`, icon: Activity },
                 { label: 'Zone', value: selectedBin.zone, icon: MapPin },
                 { label: 'Address', value: selectedBin.address, icon: MapPin },
                 { label: 'Source', value: selectedBin.source, icon: Activity },

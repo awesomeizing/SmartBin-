@@ -40,7 +40,7 @@ export class RouteOptimizer {
         
         // Score = (Fill Level / Distance) * Health Penalty
         // High fill and short distance yields highest score. Faulty sensors get slightly higher priority.
-        const healthMultiplier = bin.healthScore < 80 ? 1.2 : 1.0;
+        const healthMultiplier = bin.healthScore !== null && bin.healthScore < 80 ? 1.2 : 1.0;
         const score = (bin.fillPct / safeDist) * healthMultiplier;
 
         if (score > bestScore) {

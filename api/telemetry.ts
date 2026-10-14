@@ -31,12 +31,15 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { initializeApp, getApps, cert } from 'firebase-admin/app';
-import { getDatabase } from 'firebase-admin/database';
+import { timingSafeEqual } from 'node:crypto';
+import { getAdminDb, isServerFirebaseConfigured } from './_lib/firebaseAdmin.js';
+import { emailAlertSubscribers } from './_lib/alertEmail.js';
 
 // ── Constants (must match ESP32 firmware and frontend hardware.ts) ─────────
 const EMPTY_DISTANCE_CM = 11;
 const FULL_DISTANCE_CM  = 3;
+const SENSOR_MIN_CM = 2;
+const SENSOR_MAX_CM = 30;
 const OFFLINE_TIMEOUT_MS = 180_000; // 180 s
 
 const VALID_BINS = ['BIN-01', 'BIN-02', 'BIN-03', 'BIN-04'] as const;
@@ -79,24 +82,18 @@ function getBinStatus(fillPct: number): 'Empty' | 'Half' | 'Full' {
   return 'Empty';
 }
 
-// ── Firebase Admin init (lazy singleton) ────────────────────────────────────
-function getDb() {
-  if (getApps().length === 0) {
-    const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT_JSON
-      ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON)
-      : undefined;
+function matchesDeviceApiKey(supplied: string | undefined, expected: string): boolean {
+  if (!supplied) return false;
+  const suppliedBytes = Buffer.from(supplied);
+  const expectedBytes = Buffer.from(expected);
+  return suppliedBytes.length === expectedBytes.length && timingSafeEqual(suppliedBytes, expectedBytes);
+}
 
-    if (serviceAccount) {
-      initializeApp({
-        credential: cert(serviceAccount),
-        databaseURL: process.env.FIREBASE_DATABASE_URL,
-      });
-    } else {
-      // Fallback: use FIREBASE_DATABASE_URL + env-based auth (for local dev)
-      initializeApp({ databaseURL: process.env.FIREBASE_DATABASE_URL });
-    }
-  }
-  return getDatabase();
+function parseOptionalNumber(value: unknown, min: number, max: number): number | null | undefined {
+  if (value === undefined || value === null || value === '') return null;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < min || parsed > max) return undefined;
+  return parsed;
 }
 
 // ── Handler ─────────────────────────────────────────────────────────────────
@@ -115,6 +112,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({
       ok: true,
       message: 'SmartBin Telemetry API v1.0',
+      ready: isServerFirebaseConfigured() && Boolean(process.env.IOT_DEVICE_API_KEY),
+      emailDeliveryConfigured: Boolean(process.env.RESEND_API_KEY && process.env.ALERT_FROM_EMAIL),
       offlineTimeoutSec: OFFLINE_TIMEOUT_MS / 1000,
       calibration: { emptyCm: EMPTY_DISTANCE_CM, fullCm: FULL_DISTANCE_CM },
       supportedBins: VALID_BINS,
@@ -128,11 +127,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // ── API key check ───────────────────────────────────────────────────────
   const iotKey = process.env.IOT_DEVICE_API_KEY;
-  if (iotKey) {
-    const supplied = req.headers['x-api-key'] as string | undefined;
-    if (supplied !== iotKey) {
-      return res.status(401).json({ ok: false, error: 'Unauthorised — invalid API key' });
-    }
+  if (!iotKey || iotKey.length < 32 || !isServerFirebaseConfigured()) {
+    return res.status(503).json({ ok: false, error: 'Telemetry service is not configured.' });
+  }
+  const supplied = req.headers['x-api-key'] as string | undefined;
+  if (!matchesDeviceApiKey(supplied, iotKey)) {
+    return res.status(401).json({ ok: false, error: 'Unauthorised — invalid API key' });
   }
 
   // ── Parse payload ───────────────────────────────────────────────────────
@@ -141,8 +141,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const rawDeviceId = (body.deviceId ?? '').toString().trim();
   const rawBinId    = (body.binId    ?? body.id ?? '').toString().trim();
   const distanceCm  = Number(body.distanceCm);
-  const clientTs    = body.timestamp ? new Date(body.timestamp).getTime() : Date.now();
   const serverTs    = Date.now();
+  const parsedClientTs = typeof body.timestamp === 'number'
+    ? (body.timestamp >= 1_600_000_000_000 ? body.timestamp : NaN)
+    : typeof body.timestamp === 'string'
+      ? Date.parse(body.timestamp)
+      : NaN;
+  // ESP32 firmware currently sends millis-since-boot in `timestamp`. Keep the
+  // server clock authoritative unless the payload is a plausible epoch time.
+  const clientTs = Number.isFinite(parsedClientTs) && parsedClientTs >= 1_600_000_000_000 && parsedClientTs <= serverTs + 300_000
+    ? parsedClientTs
+    : serverTs;
+  const rssi = parseOptionalNumber(body.rssi, -120, 0);
+  const batteryPct = parseOptionalNumber(body.batteryPct, 0, 100);
+  const uptimeSec = parseOptionalNumber(body.uptimeSec, 0, 1_000_000_000);
+  if (rssi === undefined || batteryPct === undefined || uptimeSec === undefined) {
+    return res.status(400).json({ ok: false, error: 'Optional rssi, batteryPct, or uptimeSec telemetry is out of range.' });
+  }
 
   // ── Validate deviceId ────────────────────────────────────────────────────
   const normalisedDeviceId = rawDeviceId.toUpperCase().trim();
@@ -178,6 +193,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       error: `Invalid distanceCm: "${body.distanceCm}". Must be a non-negative finite number.`,
     });
   }
+  if (distanceCm < SENSOR_MIN_CM || distanceCm > SENSOR_MAX_CM) {
+    return res.status(400).json({
+      ok: false,
+      error: `Invalid sensor range: distanceCm must be between ${SENSOR_MIN_CM} and ${SENSOR_MAX_CM} cm.`,
+    });
+  }
 
   // ── Compute fill (server is authoritative) ───────────────────────────────
   const fillPct    = calculateFillPct(distanceCm);
@@ -186,16 +207,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // ── Write to Firebase ────────────────────────────────────────────────────
   try {
-    const db = getDb();
+    const db = getAdminDb();
 
     const liveRecord = {
       distanceCm     : Math.round(distanceCm * 10) / 10,
       fillPct,
       binStatus,
       messageStatus  : 'Delivered',
-      rssi           : body.rssi   !== undefined ? Number(body.rssi)        : null,
-      batteryPct     : body.batteryPct !== undefined ? Number(body.batteryPct) : null,
-      uptimeSec      : body.uptimeSec  !== undefined ? Number(body.uptimeSec)  : null,
+      rssi,
+      batteryPct,
+      uptimeSec,
       firmware       : body.firmware   ?? null,
       timestamp      : serverTs,
       clientTimestamp: isFinite(clientTs) ? clientTs : serverTs,
@@ -222,12 +243,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       [`bins/${binId}/meta/lastSeen`]   : serverTs,
       [`bins/${binId}/meta/deviceId`]   : normalisedDeviceId,
       [`bins/${binId}/meta/source`]     : 'device',
+      [`bins/${binId}/health/sensorOk`] : true,
+      [`bins/${binId}/health/wifiOk`]   : true,
       [`devices/${normalisedDeviceId}`] : deviceRecord,
     };
+
+    // Give a newly connected physical bin usable metadata without inventing
+    // a GPS position. An operator can add its surveyed coordinates later.
+    const metaRef = db.ref(`bins/${binId}/meta`);
+    const existingMeta = await metaRef.once('value');
+    if (!existingMeta.exists()) {
+      writes[`bins/${binId}/meta`] = {
+        binId,
+        label: binId.replace('-', ' '),
+        zone: 'Unassigned',
+        address: 'Location not configured',
+        location: { lat: 0, lng: 0 },
+        depthCm: EMPTY_DISTANCE_CM,
+        thresholdPct: 80,
+        source: 'device',
+        installedAt: serverTs,
+        capacity: 0,
+        deviceId: normalisedDeviceId,
+        lastSeen: serverTs,
+      };
+    }
 
     // ── Deduplicated FULL alert ─────────────────────────────────────────
     // Only raise a new alert if the bin just crossed 80% from below.
     // Read existing alert state before writing (one extra read, acceptable).
+    let newAlert: BinAlertPayload | null = null;
     if (status === 'FULL') {
       const alertRef = db.ref(`alerts`);
       const existing = await alertRef
@@ -245,19 +290,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       if (!hasPendingAlert) {
         const alertKey = `alert-${binId}-${serverTs}`;
-        writes[`alerts/${alertKey}`] = {
+        newAlert = {
           id             : alertKey,
           binId,
           binLabel       : binId.replace('-', ' '),
           severity       : 'critical',
           type           : 'bin_full',
           message        : `${binId} reached ${fillPct}% — collection required.`,
+          fillPct,
+          distanceCm: liveRecord.distanceCm,
           raisedAt       : serverTs,
           acknowledgedBy : null,
           acknowledgedAt : null,
           resolvedAt     : null,
           state          : 'active',
         };
+        writes[`alerts/${alertKey}`] = newAlert;
       }
     }
 
@@ -267,6 +315,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Append history separately (push generates a new child key)
     await db.ref(`history/${binId}`).push(historyRecord);
 
+    let emailDelivery = { sent: 0, failed: 0, skipped: 'no_new_alert' as string | null };
+    if (newAlert) {
+      try {
+        emailDelivery = await emailAlertSubscribers(db, newAlert);
+        await db.ref(`alerts/${newAlert.id}/emailDelivery`).set({
+          ...emailDelivery,
+          attemptedAt: Date.now(),
+        });
+      } catch (emailError) {
+        emailDelivery = { sent: 0, failed: 1, skipped: 'delivery_error' };
+        console.error('[telemetry] alert email delivery failed', emailError instanceof Error ? emailError.message : 'unknown error');
+      }
+    }
+
     return res.status(200).json({
       ok: true,
       binId,
@@ -275,6 +337,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       fillPct,
       status,
       binStatus,
+      emailDelivery,
       serverTimestamp: serverTs,
     });
 
@@ -285,4 +348,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       error: 'Internal server error — Firebase write failed',
     });
   }
+}
+
+interface BinAlertPayload {
+  id: string;
+  binId: string;
+  binLabel: string;
+  severity: string;
+  type: string;
+  message: string;
+  fillPct: number;
+  distanceCm: number;
+  raisedAt: number;
+  acknowledgedBy: null;
+  acknowledgedAt: null;
+  resolvedAt: null;
+  state: 'active';
 }

@@ -48,10 +48,10 @@ export function LiveDeviceCard({ device }: LiveDeviceCardProps) {
         {/* Telemetry Grid */}
         <div className="grid grid-cols-2 gap-4 mb-5 p-3 rounded-xl bg-white/[0.02] border border-white/[0.03]">
           <div className="flex items-center gap-2">
-            <Battery className={`w-3.5 h-3.5 ${device.batteryPct < 20 ? 'text-red-400' : 'text-zinc-500'}`} />
+            <Battery className={`w-3.5 h-3.5 ${device.batteryPct !== null && device.batteryPct < 20 ? 'text-red-400' : 'text-zinc-500'}`} />
             <div>
               <p className="text-[10px] font-mono text-zinc-600 uppercase">Battery</p>
-              <p className="text-xs font-mono text-zinc-300">{device.batteryPct}%</p>
+              <p className="text-xs font-mono text-zinc-300">{device.batteryPct === null ? '—' : `${device.batteryPct}%`}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -82,7 +82,7 @@ export function LiveDeviceCard({ device }: LiveDeviceCardProps) {
         </div>
 
         <div className="flex items-center justify-between text-[10px] font-mono text-zinc-600">
-          <span>Firmware: v2.1.4</span>
+          <span>Firmware: {device.firmware || 'not reported'}</span>
           <span>{formatRelativeTime(device.lastUpdate)}</span>
         </div>
       </CardContent>

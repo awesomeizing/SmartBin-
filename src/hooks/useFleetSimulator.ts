@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useDatabase } from '@/contexts/DatabaseContext';
+import { IS_DEMO_MODE } from '@/lib/firebase';
 import { haversineDistance } from '@/lib/calculations';
 import { FleetService } from '@/services/fleet/FleetService';
 
@@ -12,7 +13,7 @@ export function useFleetSimulator(enabled: boolean = true) {
   const lastUpdateRef = useRef<number>(Date.now());
 
   useEffect(() => {
-    if (!enabled || !config.simulationMode || trucks.length === 0) return;
+    if (!enabled || !IS_DEMO_MODE || !config.simulationMode || trucks.length === 0) return;
 
     timerRef.current = setInterval(async () => {
       const now = Date.now();

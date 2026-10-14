@@ -3,7 +3,7 @@ import { db, IS_DEMO_MODE } from '@/lib/firebase';
 import { ref as dbRef, onValue as dbOnValue, set as dbSet, push as dbPush, remove as dbRemove, update as dbUpdate } from 'firebase/database';
 import { getMockData, toBinSummary } from '@/services/mockData';
 import type { Bin, BinSummary, Truck, Alert, CollectionEvent, TimelineEvent, DailyAnalytics, ZoneAnalytics, Notification, AppConfig, AppUser, AuditLogEntry, HistoryEntry, KPIData, CollectionRoute } from '@/types';
-import { calculateKPIs } from '@/lib/calculations';
+import { calculateFillPercent, calculateKPIs, getBinStatus } from '@/lib/calculations';
 import { SENSOR_TIMEOUT_MS, normalizeBinId } from '@/constants/hardware';
 
 // ── Context Type ───────────────────────────────────────────
@@ -58,6 +58,78 @@ interface DatabaseContextType {
 
 const DatabaseContext = createContext<DatabaseContextType | null>(null);
 
+function nullableNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function nullableBoolean(value: unknown): boolean | null {
+  return typeof value === 'boolean' ? value : null;
+}
+
+function normalizeFirebaseBin(id: string, rawValue: unknown): Bin {
+  const value = rawValue && typeof rawValue === 'object' ? rawValue as Record<string, any> : {};
+  const rawMeta = value.meta && typeof value.meta === 'object' ? value.meta : {};
+  const rawLive = value.live && typeof value.live === 'object' ? value.live : {};
+  const rawHealth = value.health && typeof value.health === 'object' ? value.health : {};
+  const rawReserved = value.reserved && typeof value.reserved === 'object' ? value.reserved : {};
+  const distanceCm = Number.isFinite(Number(rawLive.distanceCm)) ? Number(rawLive.distanceCm) : 11;
+  const fillPct = Number.isFinite(Number(rawLive.fillPct))
+    ? Number(rawLive.fillPct)
+    : calculateFillPercent(distanceCm);
+  const rawLocation = rawMeta.location && typeof rawMeta.location === 'object' ? rawMeta.location : {};
+  const source = ['device', 'simulated', 'placeholder'].includes(rawMeta.source)
+    ? rawMeta.source
+    : 'placeholder';
+
+  return {
+    id,
+    meta: {
+      binId: rawMeta.binId || id,
+      label: rawMeta.label || id.replace('-', ' '),
+      zone: rawMeta.zone || 'Unassigned',
+      address: rawMeta.address || 'Location not configured',
+      location: {
+        lat: Number.isFinite(Number(rawLocation.lat)) ? Number(rawLocation.lat) : 0,
+        lng: Number.isFinite(Number(rawLocation.lng)) ? Number(rawLocation.lng) : 0,
+      },
+      depthCm: Number.isFinite(Number(rawMeta.depthCm)) ? Number(rawMeta.depthCm) : 11,
+      thresholdPct: Number.isFinite(Number(rawMeta.thresholdPct)) ? Number(rawMeta.thresholdPct) : 80,
+      source,
+      installedAt: Number.isFinite(Number(rawMeta.installedAt)) ? Number(rawMeta.installedAt) : 0,
+      capacity: Number.isFinite(Number(rawMeta.capacity)) ? Number(rawMeta.capacity) : 0,
+    },
+    live: {
+      distanceCm,
+      fillPct,
+      binStatus: ['Empty', 'Half', 'Full'].includes(rawLive.binStatus)
+        ? rawLive.binStatus
+        : getBinStatus(fillPct),
+      messageStatus: rawLive.messageStatus === 'Delivered' ? 'Delivered' : 'Failed',
+      rssi: nullableNumber(rawLive.rssi),
+      batteryPct: nullableNumber(rawLive.batteryPct),
+      uptimeSec: nullableNumber(rawLive.uptimeSec),
+      firmware: typeof rawLive.firmware === 'string' ? rawLive.firmware : '',
+      timestamp: Number.isFinite(Number(rawLive.timestamp)) ? Number(rawLive.timestamp) : 0,
+    },
+    health: {
+      sensorOk: nullableBoolean(rawHealth.sensorOk),
+      wifiOk: nullableBoolean(rawHealth.wifiOk),
+      ledOk: nullableBoolean(rawHealth.ledOk),
+      buzzerOk: nullableBoolean(rawHealth.buzzerOk),
+      oledOk: nullableBoolean(rawHealth.oledOk),
+      healthScore: nullableNumber(rawHealth.healthScore),
+      lastMaintenance: Number.isFinite(Number(rawHealth.lastMaintenance)) ? Number(rawHealth.lastMaintenance) : null,
+    },
+    reserved: {
+      temperatureC: Number.isFinite(Number(rawReserved.temperatureC)) ? Number(rawReserved.temperatureC) : null,
+      humidityPct: Number.isFinite(Number(rawReserved.humidityPct)) ? Number(rawReserved.humidityPct) : null,
+      gasPpm: Number.isFinite(Number(rawReserved.gasPpm)) ? Number(rawReserved.gasPpm) : null,
+    },
+  };
+}
+
 export const useDatabase = () => {
   const context = useContext(DatabaseContext);
   if (!context) throw new Error('useDatabase must be used within a DatabaseProvider');
@@ -77,10 +149,17 @@ export const DatabaseProvider = ({ children }: { children: React.ReactNode }) =>
   const [dailyAnalytics, setDailyAnalytics] = useState<DailyAnalytics[]>([]);
   const [zoneAnalytics, setZoneAnalytics] = useState<ZoneAnalytics[]>([]);
   const [history, setHistory] = useState<Record<string, HistoryEntry[]>>({});
-  const [config, setConfig] = useState<AppConfig>({ defaultThresholdPct: 80, pollIntervalSec: 60, truckKmPerL: 3.5, co2KgPerL: 2.68, simulationMode: true });
+  const [config, setConfig] = useState<AppConfig>({ defaultThresholdPct: 80, pollIntervalSec: 60, truckKmPerL: 3.5, co2KgPerL: 2.68, simulationMode: IS_DEMO_MODE });
   const [users, setUsers] = useState<AppUser[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [statusClock, setStatusClock] = useState(Date.now());
+
+  useEffect(() => {
+    if (IS_DEMO_MODE) return;
+    const timer = setInterval(() => setStatusClock(Date.now()), 10_000);
+    return () => clearInterval(timer);
+  }, []);
 
   // ── Load Data ────────────────────────────────────────────
 
@@ -111,13 +190,7 @@ export const DatabaseProvider = ({ children }: { children: React.ReactNode }) =>
     unsubscribers.push(dbOnValue(binsRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
-        const binArray = Object.entries(data).map(([id, val]: [string, any]) => ({
-          id,
-          meta: val.meta || {},
-          live: val.live || {},
-          health: val.health || {},
-          reserved: val.reserved || {},
-        })) as Bin[];
+        const binArray = Object.entries(data).map(([id, val]) => normalizeFirebaseBin(id, val));
         setBins(binArray);
       } else {
         setBins([]);
@@ -151,6 +224,12 @@ export const DatabaseProvider = ({ children }: { children: React.ReactNode }) =>
       }
     }));
 
+    const configRef = dbRef(db, 'config');
+    unsubscribers.push(dbOnValue(configRef, (snapshot) => {
+      const data = snapshot.val() || {};
+      setConfig((previous) => ({ ...previous, ...data, simulationMode: false }));
+    }));
+
     return () => {
       unsubscribers.forEach(unsub => unsub());
     };
@@ -162,8 +241,8 @@ export const DatabaseProvider = ({ children }: { children: React.ReactNode }) =>
   const binSummaries = useMemo(() => bins.map(b => {
     const summary = toBinSummary(b);
     // Recompute isOnline using the centralised timeout
-    return { ...summary, isOnline: (Date.now() - b.live.timestamp) < SENSOR_TIMEOUT_MS };
-  }), [bins]);
+    return { ...summary, isOnline: b.live.timestamp > 0 && (statusClock - b.live.timestamp) < SENSOR_TIMEOUT_MS };
+  }), [bins, statusClock]);
 
   const kpis = useMemo((): KPIData => {
     const base = calculateKPIs(binSummaries);
@@ -291,7 +370,7 @@ export const DatabaseProvider = ({ children }: { children: React.ReactNode }) =>
     bins, binSummaries, trucks, routes, alerts, notifications, collections,
     timeline, dailyAnalytics, zoneAnalytics, history, config, users, auditLogs, kpis,
     loading,
-    isSimulationMode: IS_DEMO_MODE || config.simulationMode,
+    isSimulationMode: IS_DEMO_MODE,
     addBin, updateBin, deleteBin, updateTruck, updateRoute, addRoute,
     acknowledgeAlert, resolveAlert,
     markNotificationRead, markAllNotificationsRead, deleteNotification,

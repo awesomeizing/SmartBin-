@@ -107,11 +107,20 @@
 
     "users": {
       "$uid": {
-        ".read": "auth.uid === $uid || root.child('users').child(auth.uid).child('role').val() === 'administrator'",
-        ".write": "root.child('users').child(auth.uid).child('role').val() === 'administrator'",
+        ".read": "auth != null && (auth.uid === $uid || root.child('users').child(auth.uid).child('role').val() === 'administrator')",
+        ".write": "auth != null && (auth.uid === $uid || root.child('users').child(auth.uid).child('role').val() === 'administrator')",
         "role": {
-          ".validate": "newData.val() === 'user' || newData.val() === 'municipality' || newData.val() === 'administrator'"
+          ".validate": "(auth.uid === $uid && (newData.val() === 'user' || newData.val() === data.val())) || root.child('users').child(auth.uid).child('role').val() === 'administrator'"
         }
+      }
+    },
+
+    "notificationSubscriptions": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || root.child('users').child(auth.uid).child('role').val() === 'administrator')",
+        ".write": "auth != null && auth.uid === $uid",
+        "emailAlerts": { ".validate": "newData.isBoolean()" },
+        "updatedAt": { ".validate": "newData.isNumber()" }
       }
     }
   }

@@ -73,8 +73,8 @@ export function AIInsights() {
     {
       icon: Zap,
       title: 'Battery Replacement Needed',
-      description: `${binSummaries.filter(b => b.batteryPct < 20).length} bins have battery below 20%. Schedule preventive maintenance.`,
-      priority: binSummaries.filter(b => b.batteryPct < 20).length > 0 ? 'high' as const : 'low' as const,
+      description: `${binSummaries.filter(b => b.batteryPct !== null && b.batteryPct < 20).length} bins report battery below 20%.`,
+      priority: binSummaries.some(b => b.batteryPct !== null && b.batteryPct < 20) ? 'high' as const : 'low' as const,
     },
     {
       icon: TrendingUp,

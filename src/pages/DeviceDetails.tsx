@@ -102,8 +102,8 @@ export function DeviceDetails() {
                 <div>
                   <p className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider mb-1">Battery</p>
                   <div className="flex items-center gap-2">
-                    <Battery className={`w-4 h-4 ${device.live.batteryPct < 20 ? 'text-red-400' : 'text-zinc-300'}`} />
-                    <span className="font-mono text-lg text-white">{device.live.batteryPct}%</span>
+                    <Battery className={`w-4 h-4 ${device.live.batteryPct !== null && device.live.batteryPct < 20 ? 'text-red-400' : 'text-zinc-300'}`} />
+                    <span className="font-mono text-lg text-white">{device.live.batteryPct === null ? '—' : `${device.live.batteryPct}%`}</span>
                   </div>
                 </div>
                 <div>
@@ -122,8 +122,8 @@ export function DeviceDetails() {
             <CardHeader className="border-b border-white/[0.05]">
               <CardTitle className="text-sm font-medium flex items-center justify-between">
                 Diagnostics
-                <Badge variant={device.health.healthScore >= 80 ? 'success' : 'danger'} size="sm">
-                  {device.health.healthScore}/100
+                <Badge variant={device.health.healthScore === null ? 'outline' : device.health.healthScore >= 80 ? 'success' : 'danger'} size="sm">
+                  {device.health.healthScore === null ? 'Not reported' : `${device.health.healthScore}/100`}
                 </Badge>
               </CardTitle>
             </CardHeader>
@@ -137,10 +137,12 @@ export function DeviceDetails() {
                 ].map((comp, i) => (
                   <div key={i} className="flex items-center justify-between px-6 py-3">
                     <span className="text-sm text-zinc-300">{comp.label}</span>
-                    {comp.ok ? (
+                    {comp.ok === true ? (
                       <ShieldCheck className="w-4 h-4 text-emerald-500" />
-                    ) : (
+                    ) : comp.ok === false ? (
                       <AlertTriangle className="w-4 h-4 text-red-500" />
+                    ) : (
+                      <span className="text-[10px] font-mono text-zinc-500">Not reported</span>
                     )}
                   </div>
                 ))}
@@ -156,7 +158,7 @@ export function DeviceDetails() {
             <CardContent className="p-6 space-y-4">
               {[
                 { label: 'Firmware', value: device.live.firmware, icon: Settings2 },
-                { label: 'Uptime', value: `${Math.round(device.live.uptimeSec / 3600)} hrs`, icon: Activity },
+                { label: 'Uptime', value: device.live.uptimeSec === null ? '—' : `${Math.round(device.live.uptimeSec / 3600)} hrs`, icon: Activity },
                 { label: 'Coordinates', value: `${device.meta.location.lat.toFixed(4)}, ${device.meta.location.lng.toFixed(4)}`, icon: MapPin },
                 { label: 'Installed', value: formatDateTime(device.meta.installedAt), icon: Activity },
                 { label: 'Capacity', value: `${device.meta.capacity}L (${device.meta.depthCm}cm)`, icon: Activity },

@@ -58,7 +58,7 @@
 #define WIFI_SSID        "YOUR_WIFI_SSID"
 #define WIFI_PASSWORD    "YOUR_WIFI_PASSWORD"
 
-/** Must match IOT_DEVICE_API_KEY on the server. Leave empty to disable auth. */
+/** Must match IOT_DEVICE_API_KEY on the server. The server rejects requests without it. */
 #define DEVICE_API_KEY   "YOUR_DEVICE_API_KEY"
 
 /** Full URL of your Vercel deployment, e.g. https://smartbin.vercel.app/api/telemetry */
@@ -370,6 +370,11 @@ void wifiEnsure() {
 
 bool postTelemetry(uint8_t idx) {
   if (WiFi.status() != WL_CONNECTED) return false;
+  if (!bins[idx].sensorOk) {
+    Serial.print(F("[upload] ")); Serial.print(BIN_IDS[idx]);
+    Serial.println(F(" skipped — no valid sensor reading"));
+    return false;
+  }
 
   HTTPClient http;
   http.begin(TELEMETRY_URL);

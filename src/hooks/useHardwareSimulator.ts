@@ -3,6 +3,7 @@ import { useDatabase } from '@/contexts/DatabaseContext';
 import { HardwareService } from '@/services/hardware/HardwareServices';
 import { calculateFillPercent, getBinStatus } from '@/lib/calculations';
 import { EMPTY_DISTANCE_CM, FULL_DISTANCE_CM } from '@/constants/hardware';
+import { IS_DEMO_MODE } from '@/lib/firebase';
 
 /**
  * ████████████████████████████████████████████████████████████
@@ -41,7 +42,7 @@ export function useHardwareSimulator(enabled: boolean = true) {
   };
 
   useEffect(() => {
-    if (!enabled || !config.simulationMode || bins.length === 0) return;
+    if (!enabled || !IS_DEMO_MODE || !config.simulationMode || bins.length === 0) return;
 
     // Simulation loop every 5 seconds
     timerRef.current = setInterval(() => {

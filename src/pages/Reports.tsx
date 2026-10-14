@@ -42,7 +42,7 @@ export function Reports() {
       case 'bins': {
         csvContent = 'Bin ID,Label,Zone,Fill Level (%),Battery (%),Status,Health Score,Last Update\n';
         csvContent += binSummaries.map(b =>
-          `${b.id},${b.label},${b.zone},${b.fillPct},${b.batteryPct},${b.binStatus},${b.healthScore},${formatDate(b.lastUpdate)}`
+          `${b.id},${b.label},${b.zone},${b.fillPct},${b.batteryPct ?? ''},${b.binStatus},${b.healthScore ?? ''},${formatDate(b.lastUpdate)}`
         ).join('\n');
         filename = `smartbin_bins_${formatDate(Date.now(), 'yyyy-MM-dd')}`;
         break;

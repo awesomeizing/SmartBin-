@@ -23,8 +23,8 @@ export function HardwareDashboard() {
       let matchesFilter = true;
       if (filter === 'online') matchesFilter = bin.isOnline;
       if (filter === 'offline') matchesFilter = !bin.isOnline;
-      if (filter === 'low_battery') matchesFilter = bin.batteryPct < 20;
-      if (filter === 'faulty') matchesFilter = bin.healthScore < 80;
+      if (filter === 'low_battery') matchesFilter = bin.batteryPct !== null && bin.batteryPct < 20;
+      if (filter === 'faulty') matchesFilter = bin.healthScore !== null && bin.healthScore < 80;
 
       return matchesSearch && matchesFilter;
     });
@@ -34,10 +34,14 @@ export function HardwareDashboard() {
     return {
       online: binSummaries.filter(b => b.isOnline).length,
       offline: binSummaries.filter(b => !b.isOnline).length,
-      lowBattery: binSummaries.filter(b => b.batteryPct < 20).length,
-      faulty: binSummaries.filter(b => b.healthScore < 80).length,
-      avgBattery: Math.round(binSummaries.reduce((s, b) => s + b.batteryPct, 0) / Math.max(binSummaries.length, 1)),
-      avgSignal: Math.round(binSummaries.reduce((s, b) => s + b.rssi, 0) / Math.max(binSummaries.length, 1)),
+      lowBattery: binSummaries.filter(b => b.batteryPct !== null && b.batteryPct < 20).length,
+      faulty: binSummaries.filter(b => b.healthScore !== null && b.healthScore < 80).length,
+      avgBattery: binSummaries.some(b => b.batteryPct !== null)
+        ? Math.round(binSummaries.reduce((s, b) => s + (b.batteryPct ?? 0), 0) / binSummaries.filter(b => b.batteryPct !== null).length)
+        : null,
+      avgSignal: binSummaries.some(b => b.rssi !== null)
+        ? Math.round(binSummaries.reduce((s, b) => s + (b.rssi ?? 0), 0) / binSummaries.filter(b => b.rssi !== null).length)
+        : null,
     };
   }, [binSummaries]);
 
@@ -64,8 +68,8 @@ export function HardwareDashboard() {
           { label: 'Offline', value: kpis.offline, icon: WifiOff, color: '#ef4444' },
           { label: 'Low Battery', value: kpis.lowBattery, icon: Battery, color: '#f59e0b' },
           { label: 'Faulty Sensors', value: kpis.faulty, icon: AlertTriangle, color: '#ef4444' },
-          { label: 'Avg Battery', value: `${kpis.avgBattery}%`, icon: Battery, color: '#3b82f6' },
-          { label: 'Avg Signal', value: `${kpis.avgSignal} dBm`, icon: Wifi, color: '#8b5cf6' },
+          { label: 'Avg Battery', value: kpis.avgBattery === null ? '—' : `${kpis.avgBattery}%`, icon: Battery, color: '#3b82f6' },
+          { label: 'Avg Signal', value: kpis.avgSignal === null ? '—' : `${kpis.avgSignal} dBm`, icon: Wifi, color: '#8b5cf6' },
         ].map((kpi, i) => (
           <Card key={i} className="bg-white/[0.01] border-white/[0.05]">
             <CardContent className="p-4 flex flex-col items-center text-center">

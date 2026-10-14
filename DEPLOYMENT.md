@@ -13,7 +13,7 @@
 
 1. Open [Firebase Console](https://console.firebase.google.com) → your project.
 2. **Authentication** → Sign-in method → Enable **Email/Password**.
-3. **Realtime Database** → Create database → Start in **test mode** (lock down with rules after initial test).
+3. **Realtime Database** → Create database. Publish `firebase-rules.json` before using real bin devices.
 4. Import `firebase-rules.json` to set production-safe security rules.
 5. In **Project Settings → General → Your apps** → copy all SDK config values.
 
@@ -42,7 +42,18 @@ In Vercel Dashboard → Project → Settings → Environment Variables, add **al
 |-------------------------------|---------------------------------------------------------------------------------------|
 | `FIREBASE_DATABASE_URL`       | Firebase Realtime Database URL (same as `VITE_FIREBASE_DATABASE_URL`)                |
 | `FIREBASE_SERVICE_ACCOUNT_JSON` | Firebase Console → Project Settings → Service Accounts → Generate new private key (paste entire JSON as one line) |
-| `IOT_DEVICE_API_KEY`          | A strong random secret string — must match `DEVICE_API_KEY` in ESP32 firmware        |
+| `IOT_DEVICE_API_KEY`          | Required strong random secret — must match `DEVICE_API_KEY` in ESP32 firmware        |
+| `RESEND_API_KEY`              | Resend dashboard → API Keys                                                         |
+| `ALERT_FROM_EMAIL`            | Sender address on a domain verified in Resend                                      |
+
+Alert emails go to Firebase accounts that have verified their sign-in email and
+enabled **Settings → Notifications → Email Notifications**. Each new full-bin
+alert includes a CSV containing the current bin readings and saved telemetry
+history. The **Bin Fleet → Export telemetry CSV** action downloads the current
+cloud readings and history while signed in.
+
+The email API key and Firebase service-account JSON are server-only Vercel
+variables. Do not put them in `VITE_` variables, firmware source, or GitHub.
 
 ---
 
@@ -89,6 +100,7 @@ Or trigger a redeploy from the Vercel dashboard.
 7. Hold hand 3 cm from sensor — confirm **FULL** status and alert generated.
 8. Wait > 180 seconds with ESP32 unplugged — confirm **OFFLINE** status appears.
 9. Reconnect ESP32 — confirm **ONLINE** status resumes.
+10. Sign in with a verified email, enable email alerts in Settings, and cross the full threshold — confirm an alert email arrives with a CSV attachment.
 
 ---
 

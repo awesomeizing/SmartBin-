@@ -116,7 +116,10 @@ export function calculateKPIs(bins: BinSummary[]) {
     ? Math.round(onlineBins.reduce((s, b) => s + b.fillPct, 0) / onlineBins.length)
     : -1; // -1 signals "all offline" to the UI
 
-  const avgBattery = total > 0 ? Math.round(bins.reduce((s, b) => s + b.batteryPct, 0) / total) : 0;
+  const binsWithBattery = bins.filter((bin) => bin.batteryPct !== null);
+  const avgBattery = binsWithBattery.length > 0
+    ? Math.round(binsWithBattery.reduce((sum, bin) => sum + bin.batteryPct!, 0) / binsWithBattery.length)
+    : null;
 
   return {
     totalBins: total,

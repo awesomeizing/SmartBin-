@@ -73,7 +73,8 @@ export function formatHumidity(pct: number | null): string {
 /**
  * Format RSSI signal strength to a readable string.
  */
-export function formatSignal(rssi: number): string {
+export function formatSignal(rssi: number | null): string {
+  if (rssi === null) return '—';
   if (rssi >= -50) return 'Excellent';
   if (rssi >= -60) return 'Good';
   if (rssi >= -70) return 'Fair';
@@ -84,7 +85,8 @@ export function formatSignal(rssi: number): string {
 /**
  * Get signal strength level (0-4) from RSSI.
  */
-export function getSignalLevel(rssi: number): number {
+export function getSignalLevel(rssi: number | null): number {
+  if (rssi === null) return 0;
   if (rssi >= -50) return 4;
   if (rssi >= -60) return 3;
   if (rssi >= -70) return 2;

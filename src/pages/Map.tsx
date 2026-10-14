@@ -45,9 +45,9 @@ function createBinIcon(fillPct: number, isOnline: boolean): L.DivIcon {
 }
 
 function createTruckIcon(status: string): L.DivIcon {
-  const color = status === 'en_route' || status === 'collecting' ? '#22c55e' : 
+  const color = status === 'en_route' || status === 'collecting' ? '#22c55e' :
                 status === 'idle' ? '#3b82f6' : '#f59e0b';
-                
+
   return L.divIcon({
     className: 'custom-div-icon bg-transparent',
     html: `<div style="
@@ -187,7 +187,7 @@ export function MapView() {
                       <ProgressBar value={bin.fillPct} size="sm" />
                       <div className="flex justify-between items-center">
                         <span className="text-zinc-500 text-[10px] font-mono uppercase tracking-widest">Battery</span>
-                        <span className="font-mono text-xs text-zinc-400">{bin.batteryPct}%</span>
+                        <span className="font-mono text-xs text-zinc-400">{bin.batteryPct === null ? '—' : `${bin.batteryPct}%`}</span>
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-zinc-500 text-[10px] font-mono uppercase tracking-widest">Signal</span>
@@ -212,13 +212,13 @@ export function MapView() {
               ];
 
               return (
-                <Polyline 
-                  key={route.id} 
-                  positions={loopPositions} 
-                  color="#ef4444" 
-                  weight={3} 
+                <Polyline
+                  key={route.id}
+                  positions={loopPositions}
+                  color="#ef4444"
+                  weight={3}
                   opacity={0.7}
-                  dashArray="10, 8" 
+                  dashArray="10, 8"
                 />
               );
             })}
@@ -281,8 +281,8 @@ export function MapView() {
                 {/* Metrics */}
                 <div className="space-y-4">
                   {[
-                    { icon: Battery, label: 'Battery', value: `${selectedBin.batteryPct}%` },
-                    { icon: Wifi, label: 'Signal', value: `${formatSignal(selectedBin.rssi)} (${selectedBin.rssi}dBm)` },
+                    { icon: Battery, label: 'Battery', value: selectedBin.batteryPct === null ? '—' : `${selectedBin.batteryPct}%` },
+                    { icon: Wifi, label: 'Signal', value: selectedBin.rssi === null ? '—' : `${formatSignal(selectedBin.rssi)} (${selectedBin.rssi}dBm)` },
                     { icon: Thermometer, label: 'Temperature', value: formatTemperature(selectedBin.temperatureC) },
                     { icon: Droplets, label: 'Humidity', value: formatHumidity(selectedBin.humidityPct) },
                     { icon: MapPin, label: 'Zone', value: selectedBin.zone },

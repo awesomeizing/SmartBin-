@@ -562,6 +562,7 @@ export function toBinSummary(bin: Bin): BinSummary {
     binStatus: bin.live.binStatus,
     batteryPct: bin.live.batteryPct,
     rssi: bin.live.rssi,
+    firmware: bin.live.firmware || null,
     source: bin.meta.source,
     lastUpdate: bin.live.timestamp,
     isOnline,

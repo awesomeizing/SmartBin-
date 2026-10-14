@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { sendEmailVerification } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDatabase } from '@/contexts/DatabaseContext';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -16,11 +17,14 @@ import {
 } from 'lucide-react';
 
 export function Settings() {
-  const { currentUser } = useAuth();
+  const { currentUser, isDemoMode } = useAuth();
   const { config } = useDatabase();
   const { addToast } = useToast();
 
   const [saving, setSaving] = useState(false);
+  const [emailSettingsLoading, setEmailSettingsLoading] = useState(false);
+  const [emailDeliveryConfigured, setEmailDeliveryConfigured] = useState(false);
+  const [verificationSending, setVerificationSending] = useState(false);
 
   // Mock settings state
   const [prefs, setPrefs] = useState({
@@ -40,12 +44,82 @@ export function Settings() {
     pushAlerts: true,
   });
 
-  const handleSave = () => {
+  useEffect(() => {
+    let active = true;
+    if (isDemoMode || !currentUser) return;
+
+    setEmailSettingsLoading(true);
+    void (async () => {
+      try {
+        const token = await currentUser.getIdToken();
+        const response = await fetch('/api/notification-settings', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Unable to load email settings.');
+        if (active) {
+          setNotifications((previous) => ({ ...previous, emailAlerts: result.emailAlerts === true }));
+          setEmailDeliveryConfigured(result.emailDeliveryConfigured === true);
+        }
+      } catch (error) {
+        if (active) addToast({
+          title: 'Email settings unavailable',
+          message: error instanceof Error ? error.message : 'Could not load notification settings.',
+          severity: 'warning',
+        });
+      } finally {
+        if (active) setEmailSettingsLoading(false);
+      }
+    })();
+
+    return () => { active = false; };
+  }, [currentUser, isDemoMode, addToast]);
+
+  const handleSave = async () => {
     setSaving(true);
-    setTimeout(() => {
+    try {
+      if (!isDemoMode && currentUser) {
+        const token = await currentUser.getIdToken();
+        const response = await fetch('/api/notification-settings', {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ emailAlerts: notifications.emailAlerts }),
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Unable to save email notification settings.');
+      }
+      addToast({
+        title: isDemoMode ? 'Demo mode is active' : 'Settings saved',
+        message: isDemoMode
+          ? 'Connect Firebase to save account notification settings.'
+          : 'Your email alert preference has been saved.',
+        severity: 'info',
+      });
+    } catch (error) {
+      addToast({
+        title: 'Settings not saved',
+        message: error instanceof Error ? error.message : 'Unable to save email notification settings.',
+        severity: 'warning',
+      });
+    } finally {
       setSaving(false);
-      addToast({ title: 'Settings saved', message: 'Your preferences have been updated successfully.', severity: 'info' });
-    }, 800);
+    }
+  };
+
+  const handleSendVerification = async () => {
+    if (!currentUser) return;
+    setVerificationSending(true);
+    try {
+      await sendEmailVerification(currentUser);
+      addToast({ title: 'Verification email sent', message: `Check ${currentUser.email} and verify the address.`, severity: 'info' });
+    } catch {
+      addToast({ title: 'Could not send verification email', message: 'Check Firebase Authentication email settings and try again.', severity: 'warning' });
+    } finally {
+      setVerificationSending(false);
+    }
   };
 
   const tabs = [
@@ -176,10 +250,25 @@ export function Settings() {
                   <CardContent className="p-6 space-y-6">
                     <Switch
                       label="Email Notifications"
-                      description="Receive daily summaries and critical alerts via email"
+                      description={isDemoMode
+                        ? 'Connect Firebase to enable email alerts.'
+                        : !currentUser?.emailVerified
+                          ? 'Verify your sign-in email before enabling alerts.'
+                          : emailDeliveryConfigured
+                            ? `Critical bin alerts and a telemetry CSV will be sent to ${currentUser.email}.`
+                            : `Email delivery is not configured yet. Alerts will go to ${currentUser.email} after the server email provider is set up.`}
                       checked={notifications.emailAlerts}
                       onChange={(v) => setNotifications(prev => ({ ...prev, emailAlerts: v }))}
+                      disabled={isDemoMode || emailSettingsLoading || !currentUser?.emailVerified}
                     />
+                    {!isDemoMode && !currentUser?.emailVerified && (
+                      <Button variant="outline" size="sm" onClick={handleSendVerification} disabled={verificationSending}>
+                        {verificationSending ? 'Sending…' : 'Send verification email'}
+                      </Button>
+                    )}
+                    {!isDemoMode && emailSettingsLoading && (
+                      <p className="text-xs text-zinc-500">Loading saved email notification preference…</p>
+                    )}
                     <Switch
                       label="Push Notifications"
                       description="Receive real-time alerts in your browser"
