@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, Search, Menu, Command, Zap, Cpu } from 'lucide-react';
+import { Bell, Search, Menu, Command, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useDatabase } from '@/contexts/DatabaseContext';
@@ -21,10 +21,13 @@ export function Header() {
     
     if (val.length > 1 && bins) {
       const binList = Object.values(bins);
-      const matches = binList.filter((b: any) => 
-        b.location?.toLowerCase().includes(val.toLowerCase()) || 
-        b.id?.toLowerCase().includes(val.toLowerCase())
-      ).slice(0, 5);
+      const query = val.toLowerCase();
+      const matches = binList.filter((b: any) => {
+        const address = b.meta?.address || (typeof b.location === 'string' ? b.location : '');
+        const label = b.meta?.label || '';
+        const id = b.id || '';
+        return address.toLowerCase().includes(query) || label.toLowerCase().includes(query) || id.toLowerCase().includes(query);
+      }).slice(0, 5);
       setResults(matches);
     } else {
       setResults([]);
@@ -68,7 +71,7 @@ export function Header() {
                     className="px-4 py-2 hover:bg-white/[0.05] cursor-pointer text-sm flex justify-between items-center transition-colors"
                     onClick={() => handleResultClick(r.id)}
                   >
-                    <span className="font-medium text-white">{r.location}</span>
+                    <span className="font-medium text-white">{r.meta?.label || r.meta?.address || r.id}</span>
                     <span className="text-zinc-500 font-mono text-xs px-2 py-0.5 bg-white/5 rounded-md">{r.id}</span>
                   </div>
                 ))}

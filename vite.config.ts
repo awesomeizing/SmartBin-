@@ -82,15 +82,54 @@ function telemetryApiPlugin(): Plugin {
                   }
                 }
               } else {
-                // Regex match multi-bin raw string: "B1:44 B2:4 B3:0 B4:15"
-                const bPattern = /B([1-4])\s*[:=]\s*([0-9]+(?:\.[0-9]+)?)/gi;
+                // 1. Primary firmware format: "[sense] BIN-01: 7.2 cm → 47.5% (OK)" or "BIN-01: 7.2 cm"
+                const fwPattern = /BIN-?0*([1-4])\b\s*[:=]?\s*([0-9]+(?:\.[0-9]+)?)/gi;
                 let match: RegExpExecArray | null;
-                while ((match = bPattern.exec(trimmed)) !== null) {
+                while ((match = fwPattern.exec(trimmed)) !== null) {
                   readings.push({
                     binId: `BIN-0${match[1]}`,
                     distanceCm: parseFloat(match[2]),
                     timestamp: now,
                   });
+                }
+
+                // 2. Status line format: "BIN-001 Full distance=3.20cm fill=97.5%"
+                if (readings.length === 0) {
+                  const statusPattern = /BIN-?0*([1-4])\b.*?distance\s*[:=]\s*([0-9]+(?:\.[0-9]+)?)/gi;
+                  while ((match = statusPattern.exec(trimmed)) !== null) {
+                    readings.push({
+                      binId: `BIN-0${match[1]}`,
+                      distanceCm: parseFloat(match[2]),
+                      timestamp: now,
+                    });
+                  }
+                }
+
+                // 3. Compact multi-bin format: "B1:44 B2:4 B3:0 B4:15"
+                if (readings.length === 0) {
+                  const bPattern = /(?:^|[\s,;])B([1-4])\s*[:=]\s*([0-9]+(?:\.[0-9]+)?)/gi;
+                  while ((match = bPattern.exec(trimmed)) !== null) {
+                    readings.push({
+                      binId: `BIN-0${match[1]}`,
+                      distanceCm: parseFloat(match[2]),
+                      timestamp: now,
+                    });
+                  }
+                }
+
+                // 4. Single-bin anonymous stream: "[sense] 6.8 cm -> 52.5% (FILLING)"
+                if (readings.length === 0) {
+                  const singleMatch = trimmed.match(/(?:\[sense\]\s*)?([0-9]+(?:\.[0-9]+)?)\s*cm/i);
+                  if (singleMatch) {
+                    const dist = parseFloat(singleMatch[1]);
+                    if (Number.isFinite(dist)) {
+                      readings.push({
+                        binId: 'BIN-01',
+                        distanceCm: dist,
+                        timestamp: now,
+                      });
+                    }
+                  }
                 }
               }
 

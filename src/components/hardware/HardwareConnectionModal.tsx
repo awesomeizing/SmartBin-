@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { ProgressBar } from '@/components/ui/progress';
 import { getFillColor } from '@/lib/calculations';
-import { Cpu, Terminal, RefreshCw, Zap, Trash2, ArrowUpRight, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Cpu, Terminal, RefreshCw, Zap, Trash2, AlertCircle } from 'lucide-react';
 
 interface HardwareConnectionModalProps {
   open: boolean;

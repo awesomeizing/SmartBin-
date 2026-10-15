@@ -57,7 +57,7 @@ function postTelemetry(rawLine) {
 
     req.write(rawLine);
     req.end();
-  } catch (err) {
+  } catch {
     // Ignore URL errors
   }
 }
@@ -72,17 +72,18 @@ while ($true) {
   if ($actualPort -eq 'AUTO' -or !$actualPort) {
     # 1. First look for real USB-UART adapters (CH340, CP210, FTDI, etc.) that are actually connected
     $usbPorts = Get-PnpDevice -PresentOnly -ErrorAction SilentlyContinue | Where-Object {
-      ($_.FriendlyName -match 'CH340|CP210|FTDI|USB-SERIAL|USB Serial|Silicon Labs|Prolific' -or ($_.Class -eq 'Ports' -and $_.FriendlyName -notmatch 'Bluetooth')) -and $_.FriendlyName -match '\((COM\d+)\)'
+      ($_.FriendlyName -match 'CH340|CP210|FTDI|USB-SERIAL|USB Serial|Silicon Labs|Prolific' -or ($_.Class -eq 'Ports' -and $_.FriendlyName -notmatch 'Bluetooth')) -and $_.FriendlyName -match '\\((COM\\d+)\\)'
     } | ForEach-Object {
-      if ($_.FriendlyName -match '\((COM\d+)\)') { $matches[1] }
+      if ($_.FriendlyName -match '\\((COM\\d+)\\)') { $matches[1] }
     }
-    if ($usbPorts -and $usbPorts.Count -gt 0) {
-      $actualPort = $usbPorts[0]
+    $usbList = @($usbPorts)
+    if ($usbList.Count -gt 0 -and $usbList[0]) {
+      $actualPort = $usbList[0]
     } else {
       # 2. Fallback to System.IO.Ports excluding common virtual Bluetooth ports
-      $allPorts = [System.IO.Ports.SerialPort]::GetPortNames()
-      if ($allPorts -and $allPorts.Count -gt 0) {
-        $actualPort = $allPorts[0]
+      $allList = @([System.IO.Ports.SerialPort]::GetPortNames())
+      if ($allList.Count -gt 0 -and $allList[0]) {
+        $actualPort = $allList[0]
       }
     }
   }
@@ -112,7 +113,7 @@ while ($true) {
       }
     }
   } catch {
-    Write-Output "[ERROR] Failed to open \${actualPort}: " + $_.Exception.Message
+    Write-Output "[ERROR] Failed to open $actualPort : $($_.Exception.Message)"
     Start-Sleep -Seconds 2
   } finally {
     if ($p -and $p.IsOpen) { 

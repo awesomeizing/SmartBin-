@@ -12,7 +12,7 @@ import { Modal, ModalBody } from '@/components/ui/modal';
 import { SimulationBanner } from '@/components/dashboard/SimulationBanner';
 import { formatRelativeTime, formatSignal, formatTemperature, formatHumidity } from '@/lib/formatters';
 import { useToast } from '@/contexts/NotificationContext';
-import { Search, Plus, Download, Trash2, Activity, Eye, MapPin, Battery, Wifi, Thermometer, Ruler } from 'lucide-react';
+import { Search, Download, Trash2, Activity, Eye, MapPin, Battery, Wifi, Thermometer } from 'lucide-react';
 import type { BinSummary } from '@/types';
 
 import { useHardwareSerial } from '@/contexts/HardwareSerialContext';

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useRef, useEffect, useCallback } from 'react';
 import { parseSerialLine, type ParsedReading } from '@/services/hardware/serialParser';
+import { useDatabase } from '@/contexts/DatabaseContext';
 
 export interface StreamStats {
   packetsReceived: number;
@@ -26,6 +27,7 @@ interface HardwareSerialContextType {
 const HardwareSerialContext = createContext<HardwareSerialContextType | null>(null);
 
 export function HardwareSerialProvider({ children }: { children: React.ReactNode }) {
+  const { ingestHardwareReadings, setHardwareConnected } = useDatabase();
 
   const [isSupported, setIsSupported] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
@@ -43,7 +45,7 @@ export function HardwareSerialProvider({ children }: { children: React.ReactNode
   });
 
   const portRef = useRef<any>(null);
-  const readerRef = useRef<ReadableStreamDefaultReader<string> | null>(null);
+  const readerRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null);
   const keepReadingRef = useRef(false);
 
   useEffect(() => {
@@ -65,6 +67,11 @@ export function HardwareSerialProvider({ children }: { children: React.ReactNode
     try {
       if (readerRef.current) {
         await readerRef.current.cancel().catch(() => {});
+        try {
+          readerRef.current.releaseLock();
+        } catch {
+          // ignore
+        }
         readerRef.current = null;
       }
       if (portRef.current) {
@@ -77,9 +84,10 @@ export function HardwareSerialProvider({ children }: { children: React.ReactNode
       setIsConnected(false);
       setIsConnecting(false);
       setPortInfo(null);
+      setHardwareConnected(false);
       addLog('[SERIAL] Disconnected from ESP32.');
     }
-  }, [addLog]);
+  }, [addLog, setHardwareConnected]);
 
   const connectSerial = useCallback(async (customBaud = 115200): Promise<boolean> => {
     if (!('serial' in navigator)) {
@@ -104,11 +112,12 @@ export function HardwareSerialProvider({ children }: { children: React.ReactNode
       setPortInfo(deviceTitle);
       setBaudRate(customBaud);
 
-      // Open at 115200 baud
+      // Open at requested baud rate
       await port.open({ baudRate: customBaud });
 
       setIsConnected(true);
       setIsConnecting(false);
+      setHardwareConnected(true);
       keepReadingRef.current = true;
       addLog(`[SERIAL] Connected at ${customBaud} baud (${deviceTitle})`);
 
@@ -117,11 +126,10 @@ export function HardwareSerialProvider({ children }: { children: React.ReactNode
         disconnectSerial();
       });
 
-      // Start read loop
-      const textDecoder = new TextDecoderStream();
-      const readableStreamClosed = port.readable.pipeTo(textDecoder.writable);
-      const reader = textDecoder.readable.getReader();
+      // Start direct read loop with native TextDecoder to avoid stream locking issues
+      const reader = port.readable.getReader();
       readerRef.current = reader;
+      const textDecoder = new TextDecoder();
 
       // Process incoming stream in background
       (async () => {
@@ -131,13 +139,17 @@ export function HardwareSerialProvider({ children }: { children: React.ReactNode
             const { value, done } = await reader.read();
             if (done) break;
             if (value) {
+              const text = textDecoder.decode(value, { stream: true });
               setStreamStats(s => ({
                 packetsReceived: s.packetsReceived + 1,
                 lastPacketTime: Date.now(),
                 bytesReceived: s.bytesReceived + value.length,
               }));
 
-              buffer += value;
+              buffer += text;
+              if (buffer.length > 4000) {
+                buffer = buffer.slice(-1000);
+              }
               const lines = buffer.split(/[\r\n]+/);
               // The last item might be incomplete, keep it in the buffer
               buffer = lines.pop() ?? '';
@@ -159,11 +171,14 @@ export function HardwareSerialProvider({ children }: { children: React.ReactNode
                     return next;
                   });
 
+                  // Feed immediately into central DatabaseContext
+                  ingestHardwareReadings(readings);
+
                   // Relay to local telemetry endpoint
                   fetch('/api/telemetry', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'text/plain' },
-                    body: trimmed,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ readings, raw: trimmed }),
                   }).catch(() => {});
                 }
               }
@@ -176,8 +191,11 @@ export function HardwareSerialProvider({ children }: { children: React.ReactNode
             disconnectSerial();
           }
         } finally {
-          reader.releaseLock();
-          await readableStreamClosed.catch(() => {});
+          try {
+            reader.releaseLock();
+          } catch {
+            // ignore
+          }
         }
       })();
 
@@ -185,12 +203,13 @@ export function HardwareSerialProvider({ children }: { children: React.ReactNode
     } catch (err: any) {
       setIsConnecting(false);
       setIsConnected(false);
+      setHardwareConnected(false);
       if (err.name !== 'NotFoundError') {
         setError(err.message || 'Failed to open serial port.');
       }
       return false;
     }
-  }, [addLog, disconnectSerial]);
+  }, [addLog, disconnectSerial, ingestHardwareReadings, setHardwareConnected]);
 
   return (
     <HardwareSerialContext.Provider

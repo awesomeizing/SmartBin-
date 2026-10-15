@@ -394,7 +394,7 @@ export const DatabaseProvider = ({ children }: { children: React.ReactNode }) =>
     const now = Date.now();
 
     setBins(prevBins => {
-      const baseBins = prevBins && prevBins.length > 0 ? prevBins : (IS_DEMO_MODE ? getMockData().bins : []);
+      const baseBins = prevBins && prevBins.length > 0 ? prevBins : getMockData().bins;
       return baseBins.map(b => {
         const bNorm = normalizeBinId(b.id);
         const reading = readings.find(r => normalizeBinId(r.binId) === bNorm);
@@ -474,27 +474,52 @@ export const DatabaseProvider = ({ children }: { children: React.ReactNode }) =>
     });
   }, []);
 
-  // Subscribe to local dev SSE telemetry stream if available
+  // Subscribe to local dev SSE telemetry stream if available (with auto-reconnect)
   useEffect(() => {
     if (typeof EventSource === 'undefined') return;
-    try {
-      const es = new EventSource('/api/telemetry/events');
-      es.onmessage = (event) => {
-        try {
-          const payload = JSON.parse(event.data);
-          if (payload.type === 'telemetry' && Array.isArray(payload.readings)) {
-            ingestHardwareReadings(payload.readings);
+    let es: EventSource | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let isMounted = true;
+
+    const connectSSE = () => {
+      if (!isMounted) return;
+      try {
+        es = new EventSource('/api/telemetry/events');
+        es.onmessage = (event) => {
+          try {
+            const payload = JSON.parse(event.data);
+            if (payload.type === 'telemetry' && Array.isArray(payload.readings)) {
+              ingestHardwareReadings(payload.readings);
+            }
+          } catch {
+            // ignore
           }
-        } catch {
-          // ignore
+        };
+        es.onerror = () => {
+          if (es) {
+            es.close();
+            es = null;
+          }
+          if (isMounted) {
+            if (reconnectTimer) clearTimeout(reconnectTimer);
+            reconnectTimer = setTimeout(connectSSE, 5000);
+          }
+        };
+      } catch {
+        if (isMounted) {
+          if (reconnectTimer) clearTimeout(reconnectTimer);
+          reconnectTimer = setTimeout(connectSSE, 5000);
         }
-      };
-      return () => {
-        es.close();
-      };
-    } catch {
-      // EventSource not supported or connection error
-    }
+      }
+    };
+
+    connectSSE();
+
+    return () => {
+      isMounted = false;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (es) es.close();
+    };
   }, [ingestHardwareReadings]);
 
   // ── Value ────────────────────────────────────────────────
