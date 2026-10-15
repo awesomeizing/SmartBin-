@@ -19,6 +19,13 @@ import type { BinStatus, BinSummary, HistoryEntry } from '@/types';
  * @returns Fill percentage 0–100, rounded to one decimal.
  */
 export function calculateFillPercent(distanceCm: number): number {
+  // If distance is <= 0 or not finite (sensor echo timeout / no obstacle), waste is not touching sensor
+  if (!Number.isFinite(distanceCm) || distanceCm <= 0) return 0;
+  // If distance >= EMPTY_DISTANCE_CM (11 cm), bin is empty
+  if (distanceCm >= EMPTY_DISTANCE_CM) return 0;
+  // If distance <= FULL_DISTANCE_CM (3 cm), bin is full
+  if (distanceCm <= FULL_DISTANCE_CM) return 100;
+
   const range = EMPTY_DISTANCE_CM - FULL_DISTANCE_CM; // 8 cm
   if (range <= 0) return 0;
   const raw = ((EMPTY_DISTANCE_CM - distanceCm) / range) * 100;

@@ -59,6 +59,7 @@ export function Dashboard() {
   const {
     kpis, alerts, timeline, dailyAnalytics, binSummaries,
     routes, trucks, loading, acknowledgeAlert, resolveAlert, isSimulationMode,
+    isHardwareConnected,
   } = useDatabase();
 
   if (loading) {
@@ -127,8 +128,28 @@ export function Dashboard() {
 
   return (
     <div className="space-y-8 animate-fade-in pb-12 max-w-7xl mx-auto">
-      {/* Simulation Mode Banner */}
-      <SimulationBanner visible={isSimulationMode} />
+      {/* Simulation Mode Banner (hidden when real hardware is streaming) */}
+      <SimulationBanner visible={isSimulationMode && !isHardwareConnected} />
+
+      {/* Live Hardware Banner when active */}
+      {isHardwareConnected && (
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-sm">
+          <div className="flex items-center gap-3">
+            <span className="relative flex h-3 w-3">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-400" />
+            </span>
+            <div>
+              <span className="font-mono font-bold text-emerald-400 text-xs uppercase tracking-wider">
+                LIVE HARDWARE FEED ACTIVE
+              </span>
+              <span className="text-zinc-300 text-xs ml-2">
+                — Real-time ultrasonic sensor stream is active. Moving objects or hands will update fill levels live.
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Page Header */}
       <div className="flex items-center justify-between border-b border-white/[0.05] pb-6">

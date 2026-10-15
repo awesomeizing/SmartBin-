@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
 import { DatabaseProvider } from './contexts/DatabaseContext'
+import { HardwareSerialProvider } from './contexts/HardwareSerialContext'
 import { NotificationProvider } from './contexts/NotificationContext'
 import { ToastContainer } from './components/ui/toast'
 import { HardwareIntegrationProvider } from './components/hardware/HardwareIntegrationProvider'
@@ -20,12 +21,14 @@ function Root() {
     <BrowserRouter>
       <AuthProvider>
         <DatabaseProvider>
-          <NotificationProvider>
-            <HardwareIntegrationProvider>
-              <App />
-              <ToastContainer />
-            </HardwareIntegrationProvider>
-          </NotificationProvider>
+          <HardwareSerialProvider>
+            <NotificationProvider>
+              <HardwareIntegrationProvider>
+                <App />
+                <ToastContainer />
+              </HardwareIntegrationProvider>
+            </NotificationProvider>
+          </HardwareSerialProvider>
         </DatabaseProvider>
       </AuthProvider>
     </BrowserRouter>

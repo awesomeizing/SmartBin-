@@ -30,6 +30,19 @@ interface DatabaseContextType {
   loading: boolean;
   /** True when running with simulation data (no real Firebase / ESP32) */
   isSimulationMode: boolean;
+  /** True when physical ESP32 hardware is connected and streaming live telemetry */
+  isHardwareConnected: boolean;
+  setHardwareConnected: (connected: boolean) => void;
+  ingestHardwareReadings: (readings: Array<{
+    binId: string;
+    distanceCm: number;
+    timestamp?: number;
+    sensorOk?: boolean;
+    rssi?: number | null;
+    batteryPct?: number | null;
+    uptimeSec?: number | null;
+    firmware?: string;
+  }>) => void;
 
   // Bin Actions
   addBin: (bin: Partial<Bin>) => Promise<void>;
@@ -139,7 +152,7 @@ export const useDatabase = () => {
 // ── Provider ───────────────────────────────────────────────
 
 export const DatabaseProvider = ({ children }: { children: React.ReactNode }) => {
-  const [bins, setBins] = useState<Bin[]>([]);
+  const [bins, setBins] = useState<Bin[]>(() => (IS_DEMO_MODE ? getMockData().bins : []));
   const [trucks, setTrucks] = useState<Truck[]>([]);
   const [routes, setRoutes] = useState<CollectionRoute[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
@@ -154,10 +167,10 @@ export const DatabaseProvider = ({ children }: { children: React.ReactNode }) =>
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusClock, setStatusClock] = useState(Date.now());
+  const [isHardwareConnected, setIsHardwareConnected] = useState(false);
 
   useEffect(() => {
-    if (IS_DEMO_MODE) return;
-    const timer = setInterval(() => setStatusClock(Date.now()), 10_000);
+    const timer = setInterval(() => setStatusClock(Date.now()), 5_000);
     return () => clearInterval(timer);
   }, []);
 
@@ -364,13 +377,136 @@ export const DatabaseProvider = ({ children }: { children: React.ReactNode }) =>
     return history[binId] ?? (norm ? history[norm] : undefined) ?? [];
   }, [history]);
 
+  const ingestHardwareReadings = useCallback((readings: Array<{
+    binId: string;
+    distanceCm: number;
+    timestamp?: number;
+    sensorOk?: boolean;
+    rssi?: number | null;
+    batteryPct?: number | null;
+    uptimeSec?: number | null;
+    firmware?: string;
+  }>) => {
+    if (!readings || readings.length === 0) return;
+    setIsHardwareConnected(true);
+    setConfig(prev => ({ ...prev, simulationMode: false }));
+
+    const now = Date.now();
+
+    setBins(prevBins => {
+      const baseBins = prevBins && prevBins.length > 0 ? prevBins : (IS_DEMO_MODE ? getMockData().bins : []);
+      return baseBins.map(b => {
+        const bNorm = normalizeBinId(b.id);
+        const reading = readings.find(r => normalizeBinId(r.binId) === bNorm);
+        if (!reading) return b;
+
+        const distanceCm = reading.distanceCm;
+        const fillPct = calculateFillPercent(distanceCm);
+        const binStatus = getBinStatus(fillPct);
+
+        // Deduplicate and raise critical alert when full
+        if (fillPct >= 80) {
+          setAlerts(prevAlerts => {
+            const hasActive = prevAlerts.some(a => normalizeBinId(a.binId) === bNorm && a.state === 'active');
+            if (hasActive) return prevAlerts;
+            const newAlert: Alert = {
+              id: `ALT-${Date.now()}-${b.id}`,
+              binId: b.id,
+              binLabel: b.meta.label,
+              type: 'bin_full',
+              severity: 'critical',
+              message: `${b.meta.label} (${b.id}) critical fill reached: ${fillPct}% (${distanceCm} cm)`,
+              state: 'active',
+              raisedAt: now,
+              acknowledgedAt: null,
+              acknowledgedBy: null,
+              resolvedAt: null,
+            };
+            return [newAlert, ...prevAlerts];
+          });
+        }
+
+        return {
+          ...b,
+          meta: {
+            ...b.meta,
+            source: 'device' as const,
+          },
+          live: {
+            ...b.live,
+            distanceCm,
+            fillPct,
+            binStatus,
+            messageStatus: 'Delivered',
+            rssi: reading.rssi ?? b.live.rssi ?? -45,
+            batteryPct: reading.batteryPct ?? b.live.batteryPct ?? 98,
+            uptimeSec: reading.uptimeSec ?? b.live.uptimeSec,
+            firmware: reading.firmware || b.live.firmware || '2.0.0-4bin',
+            timestamp: reading.timestamp || now,
+          },
+          health: {
+            ...b.health,
+            sensorOk: reading.sensorOk ?? (distanceCm >= 2 && distanceCm <= 400),
+            wifiOk: true,
+          },
+        };
+      });
+    });
+
+    // Append to live history
+    setHistory(prevHist => {
+      const nextHist = { ...prevHist };
+      for (const r of readings) {
+        const norm = normalizeBinId(r.binId) || r.binId;
+        const fillPct = calculateFillPercent(r.distanceCm);
+        const entry: HistoryEntry = {
+          timestamp: r.timestamp || now,
+          fillPct,
+          distanceCm: r.distanceCm,
+          binStatus: getBinStatus(fillPct),
+        };
+        const list = nextHist[norm] ? [...nextHist[norm]] : [];
+        list.push(entry);
+        if (list.length > 60) list.shift();
+        nextHist[norm] = list;
+      }
+      return nextHist;
+    });
+  }, []);
+
+  // Subscribe to local dev SSE telemetry stream if available
+  useEffect(() => {
+    if (typeof EventSource === 'undefined') return;
+    try {
+      const es = new EventSource('/api/telemetry/events');
+      es.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data);
+          if (payload.type === 'telemetry' && Array.isArray(payload.readings)) {
+            ingestHardwareReadings(payload.readings);
+          }
+        } catch {
+          // ignore
+        }
+      };
+      return () => {
+        es.close();
+      };
+    } catch {
+      // EventSource not supported or connection error
+    }
+  }, [ingestHardwareReadings]);
+
   // ── Value ────────────────────────────────────────────────
 
   const value: DatabaseContextType = {
     bins, binSummaries, trucks, routes, alerts, notifications, collections,
     timeline, dailyAnalytics, zoneAnalytics, history, config, users, auditLogs, kpis,
     loading,
-    isSimulationMode: IS_DEMO_MODE,
+    isSimulationMode: IS_DEMO_MODE && !isHardwareConnected,
+    isHardwareConnected,
+    setHardwareConnected: setIsHardwareConnected,
+    ingestHardwareReadings,
     addBin, updateBin, deleteBin, updateTruck, updateRoute, addRoute,
     acknowledgeAlert, resolveAlert,
     markNotificationRead, markAllNotificationsRead, deleteNotification,

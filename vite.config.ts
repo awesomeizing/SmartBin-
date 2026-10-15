@@ -4,46 +4,106 @@ import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
 
 function telemetryApiPlugin(): Plugin {
+  const sseClients = new Set<any>();
+
+  function broadcastTelemetry(readings: Array<{ binId: string; distanceCm: number; timestamp?: number }>) {
+    const payload = `data: ${JSON.stringify({ type: 'telemetry', readings })}\n\n`;
+    for (const client of sseClients) {
+      try {
+        client.write(payload);
+      } catch {
+        sseClients.delete(client);
+      }
+    }
+  }
+
+  function normalizeId(raw: string): string {
+    const u = raw.toUpperCase().trim();
+    if (u === 'BIN-1' || u === 'BIN-001' || u === '1' || u === 'B1') return 'BIN-01';
+    if (u === 'BIN-2' || u === 'BIN-002' || u === '2' || u === 'B2') return 'BIN-02';
+    if (u === 'BIN-3' || u === 'BIN-003' || u === '3' || u === 'B3') return 'BIN-03';
+    if (u === 'BIN-4' || u === 'BIN-004' || u === '4' || u === 'B4') return 'BIN-04';
+    return u;
+  }
+
   return {
     name: 'telemetry-api-middleware',
     configureServer(server) {
       server.middlewares.use('/api/telemetry', (req, res) => {
+        // SSE event stream endpoint: /api/telemetry/events
+        if (req.url === '/events' || req.url === '/events/') {
+          res.writeHead(200, {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+            'Access-Control-Allow-Origin': '*',
+          });
+          res.write(`data: ${JSON.stringify({ type: 'connected', clients: sseClients.size + 1 })}\n\n`);
+          sseClients.add(res);
+          req.on('close', () => sseClients.delete(res));
+          return;
+        }
+
         if (req.method === 'POST') {
           let body = '';
           req.on('data', (chunk: Buffer) => { body += chunk.toString(); });
           req.on('end', () => {
             try {
-              const data = JSON.parse(body);
-              const rawId = (data.binId || data.id || 'BIN-01').toString().toUpperCase().trim();
-              const binId = rawId === 'BIN-1' || rawId === 'BIN-001' || rawId === '1' ? 'BIN-01'
-                : rawId === 'BIN-2' || rawId === 'BIN-002' || rawId === '2' ? 'BIN-02'
-                : rawId === 'BIN-3' || rawId === 'BIN-003' || rawId === '3' ? 'BIN-03'
-                : rawId === 'BIN-4' || rawId === 'BIN-004' || rawId === '4' ? 'BIN-04'
-                : rawId;
+              const readings: Array<{ binId: string; distanceCm: number; timestamp: number }> = [];
+              const now = Date.now();
 
-              const distanceCm = typeof data.distanceCm === 'number'
-                ? Math.max(3, Math.min(11, data.distanceCm))
-                : 7.0;
+              // Check if body is JSON or raw text line
+              const trimmed = body.trim();
+              if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+                const parsed = JSON.parse(trimmed);
+                if (Array.isArray(parsed)) {
+                  for (const item of parsed) {
+                    const binId = normalizeId(item.binId || item.id || '');
+                    const dist = Number(item.distanceCm ?? item.distance);
+                    if (binId && Number.isFinite(dist)) readings.push({ binId, distanceCm: dist, timestamp: now });
+                  }
+                } else if (parsed.readings && Array.isArray(parsed.readings)) {
+                  for (const item of parsed.readings) {
+                    const binId = normalizeId(item.binId || item.id || '');
+                    const dist = Number(item.distanceCm ?? item.distance);
+                    if (binId && Number.isFinite(dist)) readings.push({ binId, distanceCm: dist, timestamp: now });
+                  }
+                } else if (parsed.binId || parsed.deviceId || parsed.id) {
+                  const rawId = parsed.binId || parsed.id || (parsed.deviceId ? parsed.deviceId.replace('ESP32-SMARTBIN-', 'BIN-') : 'BIN-01');
+                  const binId = normalizeId(rawId);
+                  const dist = Number(parsed.distanceCm ?? parsed.distance ?? 7);
+                  readings.push({ binId, distanceCm: dist, timestamp: now });
+                } else {
+                  // Key-value JSON e.g. {"B1": 44, "B2": 4, "B3": 0, "B4": 15}
+                  for (const [k, v] of Object.entries(parsed)) {
+                    const binId = normalizeId(k);
+                    const dist = Number(v);
+                    if (Number.isFinite(dist)) readings.push({ binId, distanceCm: dist, timestamp: now });
+                  }
+                }
+              } else {
+                // Regex match multi-bin raw string: "B1:44 B2:4 B3:0 B4:15"
+                const bPattern = /B([1-4])\s*[:=]\s*([0-9]+(?:\.[0-9]+)?)/gi;
+                let match: RegExpExecArray | null;
+                while ((match = bPattern.exec(trimmed)) !== null) {
+                  readings.push({
+                    binId: `BIN-0${match[1]}`,
+                    distanceCm: parseFloat(match[2]),
+                    timestamp: now,
+                  });
+                }
+              }
 
-              // Shared formula: fillPercentage = ((11 - distance) / 8) * 100
-              const rawPct = ((11 - distanceCm) / 8) * 100;
-              const fillPercentage = Math.round(Math.max(0, Math.min(100, rawPct)) * 10) / 10;
-              const status = fillPercentage >= 80 ? 'FULL' : fillPercentage >= 50 ? 'FILLING' : 'OK';
-
-              const response = {
-                success: true,
-                bin: {
-                  id: binId,
-                  distanceCm,
-                  fillPercentage,
-                  status,
-                  sensorOnline: true,
-                  timestamp: Date.now(),
-                },
-              };
+              if (readings.length > 0) {
+                broadcastTelemetry(readings);
+              }
 
               res.setHeader('Content-Type', 'application/json');
-              res.end(JSON.stringify(response));
+              res.end(JSON.stringify({
+                success: true,
+                count: readings.length,
+                readings,
+              }));
             } catch {
               res.statusCode = 400;
               res.setHeader('Content-Type', 'application/json');
@@ -54,9 +114,10 @@ function telemetryApiPlugin(): Plugin {
           res.setHeader('Content-Type', 'application/json');
           res.end(JSON.stringify({
             success: true,
-            message: 'SmartBin Telemetry API ready. POST JSON with { binId, distanceCm }',
+            message: 'SmartBin Telemetry API ready. POST JSON with { binId, distanceCm } or subscribe to SSE on /api/telemetry/events',
             supportedBins: ['BIN-01', 'BIN-02', 'BIN-03', 'BIN-04'],
             calibration: { emptyCm: 11, fullCm: 3 },
+            sseClients: sseClients.size,
           }));
         }
       });

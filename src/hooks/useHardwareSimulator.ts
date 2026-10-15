@@ -26,7 +26,7 @@ import { IS_DEMO_MODE } from '@/lib/firebase';
  *    the real formula so the % displayed matches what a real sensor would give.
  */
 export function useHardwareSimulator(enabled: boolean = true) {
-  const { bins, updateBin, config } = useDatabase();
+  const { bins, updateBin, config, isHardwareConnected } = useDatabase();
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Per-bin drift rates in cm/cycle (different rates simulate different bins filling at different speeds)
@@ -42,12 +42,13 @@ export function useHardwareSimulator(enabled: boolean = true) {
   };
 
   useEffect(() => {
-    if (!enabled || !IS_DEMO_MODE || !config.simulationMode || bins.length === 0) return;
+    if (!enabled || !IS_DEMO_MODE || !config.simulationMode || isHardwareConnected || bins.length === 0) return;
 
     // Simulation loop every 5 seconds
     timerRef.current = setInterval(() => {
-      // Update all 4 bins each cycle (not random selection — avoids confusing the user)
+      // Update all 4 bins each cycle (skip any bin with real hardware source)
       bins.forEach(bin => {
+        if (bin.meta.source === 'device') return;
         const driftRate = DRIFT_RATE_CM_PER_CYCLE[bin.id] ?? 0.05;
 
         // Distance decreases as bin fills (waste rises toward sensor)
@@ -88,5 +89,5 @@ export function useHardwareSimulator(enabled: boolean = true) {
       if (timerRef.current) clearInterval(timerRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, bins, updateBin, config.simulationMode]);
+  }, [enabled, bins, updateBin, config.simulationMode, isHardwareConnected]);
 }

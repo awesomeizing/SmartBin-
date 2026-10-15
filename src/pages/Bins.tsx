@@ -15,6 +15,10 @@ import { useToast } from '@/contexts/NotificationContext';
 import { Search, Plus, Download, Trash2, Activity, Eye, MapPin, Battery, Wifi, Thermometer, Ruler } from 'lucide-react';
 import type { BinSummary } from '@/types';
 
+import { useHardwareSerial } from '@/contexts/HardwareSerialContext';
+import { HardwareConnectionModal } from '@/components/hardware/HardwareConnectionModal';
+import { Zap, Terminal } from 'lucide-react';
+
 // Map bin ID to device ID (production controller IDs)
 const BIN_DEVICE_MAP: Record<string, string> = {
   'BIN-01': 'ESP32-SMARTBIN-01',
@@ -24,13 +28,17 @@ const BIN_DEVICE_MAP: Record<string, string> = {
 };
 
 export function Bins() {
-  const { binSummaries, loading, deleteBin, isSimulationMode } = useDatabase();
+  const { binSummaries, loading, deleteBin, isSimulationMode, isHardwareConnected } = useDatabase();
+  const { isConnected } = useHardwareSerial();
   const { currentUser } = useAuth();
   const { addToast } = useToast();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedBin, setSelectedBin] = useState<BinSummary | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [hardwareModalOpen, setHardwareModalOpen] = useState(false);
+
+  const isLive = isConnected || isHardwareConnected;
 
   const exportTelemetry = async () => {
     if (!currentUser || isSimulationMode) return;
@@ -91,8 +99,36 @@ export function Bins() {
 
   return (
     <div className="space-y-8 animate-fade-in pb-12 max-w-7xl mx-auto">
-      {/* Demo Mode Banner */}
-      <SimulationBanner visible={isSimulationMode} />
+      {/* Demo Mode Banner (hidden when real hardware is connected) */}
+      <SimulationBanner visible={isSimulationMode && !isLive} />
+
+      {/* Live Hardware Banner when active */}
+      {isLive && (
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-sm">
+          <div className="flex items-center gap-3">
+            <span className="relative flex h-3 w-3">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-400" />
+            </span>
+            <div>
+              <span className="font-mono font-bold text-emerald-400 text-xs uppercase tracking-wider">
+                LIVE HARDWARE FEED ACTIVE
+              </span>
+              <span className="text-zinc-300 text-xs ml-2">
+                — Displaying real ultrasonic readings from connected ESP32 node. Fill percentages update dynamically.
+              </span>
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setHardwareModalOpen(true)}
+            className="shrink-0 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/20 text-xs"
+          >
+            <Terminal className="w-3.5 h-3.5 mr-1.5" /> Hardware Monitor
+          </Button>
+        </div>
+      )}
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-white/[0.05] pb-6">
@@ -102,6 +138,17 @@ export function Bins() {
         </div>
         <div className="flex flex-wrap gap-2">
           <Button
+            onClick={() => setHardwareModalOpen(true)}
+            className={`shrink-0 rounded-full px-5 ${
+              isLive
+                ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                : 'bg-white/[0.05] hover:bg-white/10 text-white border border-white/10'
+            }`}
+          >
+            <Zap className={`w-4 h-4 mr-2 ${isLive ? 'fill-current text-white' : 'text-amber-400'}`} />
+            {isConnected ? 'ESP32 Live (USB)' : isHardwareConnected ? 'Hardware Live (Relay)' : 'Connect ESP32 (USB)'}
+          </Button>
+          <Button
             variant="outline"
             className="shrink-0 rounded-full px-5"
             onClick={exportTelemetry}
@@ -110,11 +157,10 @@ export function Bins() {
           >
             <Download className="w-4 h-4 mr-2" /> {exporting ? 'Preparing…' : 'Export telemetry CSV'}
           </Button>
-          <Button className="shrink-0 rounded-full px-6 shadow-xl shadow-white/5">
-            <Plus className="w-4 h-4 mr-2" /> Provision Unit
-          </Button>
         </div>
       </div>
+
+      <HardwareConnectionModal open={hardwareModalOpen} onClose={() => setHardwareModalOpen(false)} />
 
       {/* Search & Filters */}
       <div className="flex flex-col sm:flex-row gap-4">

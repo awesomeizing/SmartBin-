@@ -1,18 +1,24 @@
 import { useState, useMemo } from 'react';
 import { useDatabase } from '@/contexts/DatabaseContext';
+import { useHardwareSerial } from '@/contexts/HardwareSerialContext';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { LiveDeviceCard } from '@/components/hardware/LiveDeviceCard';
 import { SimulationBanner } from '@/components/dashboard/SimulationBanner';
+import { HardwareConnectionModal } from '@/components/hardware/HardwareConnectionModal';
 import { EmptyState } from '@/components/ui/empty-state';
-import { Search, Cpu, Wifi, WifiOff, Battery, AlertTriangle } from 'lucide-react';
+import { Search, Cpu, Wifi, WifiOff, Battery, AlertTriangle, Zap, Terminal } from 'lucide-react';
 
 export function HardwareDashboard() {
-  const { binSummaries, isSimulationMode } = useDatabase();
+  const { binSummaries, isSimulationMode, isHardwareConnected } = useDatabase();
+  const { isConnected } = useHardwareSerial();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'all' | 'online' | 'offline' | 'low_battery' | 'faulty'>('all');
+  const [modalOpen, setModalOpen] = useState(false);
+
+  const isLive = isConnected || isHardwareConnected;
 
   const filtered = useMemo(() => {
     return binSummaries.filter(bin => {
@@ -47,8 +53,36 @@ export function HardwareDashboard() {
 
   return (
     <div className="space-y-8 animate-fade-in pb-12 max-w-7xl mx-auto">
-      {/* Simulation Banner */}
-      <SimulationBanner visible={isSimulationMode} />
+      {/* Simulation Banner (hidden if real hardware is connected) */}
+      <SimulationBanner visible={isSimulationMode && !isLive} />
+
+      {/* Live Hardware Banner when active */}
+      {isLive && (
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-sm">
+          <div className="flex items-center gap-3">
+            <span className="relative flex h-3 w-3">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-400" />
+            </span>
+            <div>
+              <span className="font-mono font-bold text-emerald-400 text-xs uppercase tracking-wider">
+                LIVE HARDWARE STREAMING ACTIVE
+              </span>
+              <span className="text-zinc-300 text-xs ml-2">
+                — Real-time ultrasonic sensor stream from ESP32 is feeding the dashboard. Hand gestures and fill levels update live.
+              </span>
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setModalOpen(true)}
+            className="shrink-0 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/20 text-xs"
+          >
+            <Terminal className="w-3.5 h-3.5 mr-1.5" /> Open Hardware Monitor
+          </Button>
+        </div>
+      )}
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-white/[0.05] pb-6">
@@ -59,7 +93,19 @@ export function HardwareDashboard() {
           </h1>
           <p className="text-zinc-500 text-sm mt-1">Real-time status of all 4 deployed ESP32 nodes.</p>
         </div>
+        <Button
+          onClick={() => setModalOpen(true)}
+          className={isLive
+            ? 'bg-emerald-600 hover:bg-emerald-500 text-white font-medium shadow-lg shadow-emerald-950/40'
+            : 'bg-white hover:bg-zinc-200 text-black font-medium'
+          }
+        >
+          <Zap className={`w-4 h-4 mr-2 ${isLive ? 'fill-current text-white' : 'text-amber-500'}`} />
+          {isConnected ? 'ESP32 Connected (USB)' : isHardwareConnected ? 'Hardware Active (Relay)' : 'Connect ESP32 (USB)'}
+        </Button>
       </div>
+
+      <HardwareConnectionModal open={modalOpen} onClose={() => setModalOpen(false)} />
 
       {/* KPI Overview */}
       <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
